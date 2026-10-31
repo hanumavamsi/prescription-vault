@@ -8,9 +8,10 @@ import { File } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Linking, Platform } from 'react-native';
-import DocumentScanner, { ResponseType, ScanDocumentResponseStatus } from 'react-native-document-scanner-plugin';
+import type * as ScannerModule from 'react-native-document-scanner-plugin';
 
 import { MAX_PAGE_BYTES } from '@/lib/api';
+import { isExpoGo } from '@/lib/runtime';
 import type { LocalPage } from '@/lib/types';
 
 const MAX_EDGE = 2400;
@@ -79,6 +80,11 @@ async function normalizeAll(items: { uri: string; width?: number; height?: numbe
 /** Native document scanner with edge detection and auto-crop. Handles camera permission itself. */
 export async function scanDocument(): Promise<LocalPage[]> {
   if (Platform.OS === 'web') throw new ScanError('Scanning is only available in the mobile app.');
+  if (isExpoGo) return takePhoto();
+  // Loaded lazily: the native module is missing in Expo Go and would crash at import time.
+  const { default: DocumentScanner, ResponseType, ScanDocumentResponseStatus } =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('react-native-document-scanner-plugin') as typeof ScannerModule;
   let res;
   try {
     res = await DocumentScanner.scanDocument({
@@ -95,6 +101,17 @@ export async function scanDocument(): Promise<LocalPage[]> {
   }
   if (res.status === ScanDocumentResponseStatus.Cancel || !res.scannedImages?.length) return [];
   return normalizeAll(res.scannedImages.map((p) => ({ uri: toFileUri(p) })));
+}
+
+/** Expo Go fallback for scanning: a plain camera photo, no edge detection. */
+async function takePhoto(): Promise<LocalPage[]> {
+  const perm = await ImagePicker.requestCameraPermissionsAsync();
+  if (!perm.granted) {
+    throw new ScanError('Camera access is turned off. Allow camera access in Settings to scan documents.', true);
+  }
+  const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
+  if (res.canceled || !res.assets.length) return [];
+  return normalizeAll(res.assets.map((a) => ({ uri: a.uri })));
 }
 
 /**

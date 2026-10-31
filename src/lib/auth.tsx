@@ -2,7 +2,7 @@
  * Authentication: Sign in with Apple (iOS) and Google, backed by Supabase Auth.
  * This is the only module besides api.ts that talks to supabase directly.
  */
-import { GoogleSignin, isErrorWithCode, statusCodes } from '@react-native-google-signin/google-signin';
+import type * as GoogleModule from '@react-native-google-signin/google-signin';
 import type { Session, User } from '@supabase/supabase-js';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
@@ -12,6 +12,7 @@ import { Platform } from 'react-native';
 import { listProfiles, updateProfile } from '@/lib/api';
 import { clearCache } from '@/lib/cache';
 import { clearPendingInvite } from '@/lib/pending-invite';
+import { isExpoGo } from '@/lib/runtime';
 import { supabase } from '@/lib/supabase';
 
 type AuthContextValue = {
@@ -20,6 +21,8 @@ type AuthContextValue = {
   initializing: boolean;
   signInWithApple(): Promise<void>;
   signInWithGoogle(): Promise<void>;
+  /** Development only (see devEmailLogin). Signs in, creating the account on first use. */
+  signInWithEmail(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
 };
 
@@ -29,8 +32,16 @@ const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 
 let googleConfigured = false;
+/** Loaded lazily: the native module is missing in Expo Go and would crash at import time. */
+function google(): typeof GoogleModule {
+  if (isExpoGo) throw new Error('Google sign-in is not available in Expo Go.');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('@react-native-google-signin/google-signin') as typeof GoogleModule;
+}
+
 function configureGoogle() {
-  if (googleConfigured) return;
+  const { GoogleSignin } = google();
+  if (googleConfigured) return GoogleSignin;
   if (!GOOGLE_WEB_CLIENT_ID) {
     throw new Error('Google sign-in is not set up yet. Please use another sign-in option.');
   }
@@ -40,6 +51,7 @@ function configureGoogle() {
     scopes: ['email', 'profile'],
   });
   googleConfigured = true;
+  return GoogleSignin;
 }
 
 function friendly(e: unknown, fallback: string): Error {
@@ -132,7 +144,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
-    configureGoogle();
+    const GoogleSignin = configureGoogle();
+    const { isErrorWithCode, statusCodes } = google();
     let idToken: string | null = null;
     try {
       if (Platform.OS === 'android') await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
@@ -153,11 +166,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw friendly(error, 'Google sign-in failed.');
   }, []);
 
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    if (!__DEV__) throw new Error('Email sign-in is only available in development.');
+    const creds = { email: email.trim(), password };
+    const res = await supabase.auth.signInWithPassword(creds);
+    if (!res.error) return;
+    if (!/invalid login credentials/i.test(res.error.message)) throw friendly(res.error, 'Sign-in failed.');
+    const { data, error } = await supabase.auth.signUp(creds);
+    if (error) throw friendly(error, 'Sign-up failed.');
+    if (!data.session) throw new Error('Account created. Turn off email confirmation in Supabase to sign in.');
+  }, []);
+
   const signOut = useCallback(async () => {
     await clearCache().catch(() => {});
     await clearPendingInvite();
     try {
-      configureGoogle();
+      const GoogleSignin = configureGoogle();
       if (GoogleSignin.hasPreviousSignIn()) await GoogleSignin.signOut();
     } catch {
       // Google not configured or never used.
@@ -176,9 +200,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initializing,
       signInWithApple,
       signInWithGoogle,
+      signInWithEmail,
       signOut,
     }),
-    [session, initializing, signInWithApple, signInWithGoogle, signOut],
+    [session, initializing, signInWithApple, signInWithGoogle, signInWithEmail, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
