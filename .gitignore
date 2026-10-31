@@ -43,3 +43,6 @@ example
 /android
 
 .env
+
+# store credentials
+google-play-service-account.json

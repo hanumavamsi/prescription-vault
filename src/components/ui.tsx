@@ -2,7 +2,7 @@
  * Shared UI primitives. Screens compose these instead of styling from scratch,
  * so the whole app keeps one look.
  */
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { SymbolView, type AndroidSymbol, type SFSymbol } from 'expo-symbols';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -54,12 +54,65 @@ export function Screen({ children, contentContainerStyle, ...rest }: ScrollViewP
 
 // ------------------------------------------------------------------ Icon
 
-export type IconName = SymbolViewProps['name'];
+/** SF Symbol names used in the app, each with its Material Symbol equivalent for Android. */
+const ANDROID_ICONS = {
+  'arrow.up.left.and.arrow.down.right': 'open_in_full',
+  'arrow.up.right.square': 'open_in_new',
+  checkmark: 'check',
+  'checkmark.square.fill': 'check_box',
+  'chevron.right': 'chevron_right',
+  'cross.case.fill': 'medical_services',
+  'doc.plaintext': 'article',
+  'doc.richtext': 'picture_as_pdf',
+  'doc.text': 'description',
+  'doc.viewfinder': 'document_scanner',
+  envelope: 'mail',
+  'exclamationmark.triangle': 'warning',
+  'exclamationmark.triangle.fill': 'warning',
+  eye: 'visibility',
+  'eye.slash': 'visibility_off',
+  faceid: 'fingerprint',
+  gearshape: 'settings',
+  'hand.raised': 'shield',
+  'info.circle': 'info',
+  internaldrive: 'storage',
+  link: 'link',
+  lock: 'lock',
+  'lock.doc': 'lock',
+  'lock.fill': 'lock',
+  paperplane: 'send',
+  pencil: 'edit',
+  'person.2': 'group',
+  'person.badge.plus': 'person_add',
+  'person.crop.circle': 'account_circle',
+  'person.crop.circle.badge.checkmark': 'how_to_reg',
+  'person.crop.circle.badge.exclamationmark': 'person_alert',
+  'person.crop.circle.badge.xmark': 'person_remove',
+  'photo.on.rectangle': 'photo_library',
+  pills: 'medication',
+  plus: 'add',
+  'rectangle.portrait.and.arrow.right': 'logout',
+  square: 'check_box_outline_blank',
+  'square.and.arrow.up': 'share',
+  trash: 'delete',
+  tray: 'inbox',
+  xmark: 'close',
+} as const satisfies Partial<Record<SFSymbol, AndroidSymbol>>;
 
-/** SF Symbol on iOS; on Android expo-symbols falls back to Material Symbols where names map. */
+export type IconName = keyof typeof ANDROID_ICONS;
+
+/** SF Symbol on iOS, the mapped Material Symbol on Android. Decorative: label the control, not the icon. */
 export function Icon({ name, size = 22, color }: { name: IconName; size?: number; color?: string }) {
   const theme = useTheme();
-  return <SymbolView name={name} size={size} tintColor={color ?? theme.text} />;
+  return (
+    <SymbolView
+      name={{ ios: name, android: ANDROID_ICONS[name], web: ANDROID_ICONS[name] }}
+      size={size}
+      tintColor={color ?? theme.text}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    />
+  );
 }
 
 // ------------------------------------------------------------------ Button
@@ -365,7 +418,7 @@ const styles = StyleSheet.create({
   field: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two + 2, gap: Spacing.one },
   input: { minHeight: 32, paddingVertical: Platform.select({ android: 0, default: 4 }) },
   segmented: { flexDirection: 'row', borderRadius: Radius.small + 1, padding: 2 },
-  segment: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.small },
+  segment: { flex: 1, minHeight: HitSize - 4, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.small },
   empty: { alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.six, paddingHorizontal: Spacing.four },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

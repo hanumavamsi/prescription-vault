@@ -100,7 +100,9 @@ alter table public.access_grants  enable row level security;
 alter table public.invites        enable row level security;
 
 create policy profiles_select on public.profiles for select to authenticated
-  using (public.can_view_profile(id) or (user_id is not null and public.is_my_viewer(user_id)));
+  -- Ownership is checked inline: helper functions can't see a row inside its own INSERT ... RETURNING.
+  using (user_id = auth.uid() or manager_id = auth.uid() or public.can_view_profile(id)
+         or (user_id is not null and public.is_my_viewer(user_id)));
 create policy profiles_insert_managed on public.profiles for insert to authenticated
   with check (manager_id = auth.uid() and user_id is null);
 create policy profiles_update on public.profiles for update to authenticated
