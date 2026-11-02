@@ -28,3 +28,6 @@ export function inviteBaseUrl(): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   return `${origin}/invite`;
 }
+
+/** Length of emailed sign-in codes; must match the Supabase project's Email OTP length (6-10). */
+export const otpLength = Math.min(10, Math.max(6, Number(process.env.EXPO_PUBLIC_OTP_LENGTH) || 6));

@@ -13,7 +13,7 @@ import { Platform } from 'react-native';
 import { listProfiles, updateProfile } from '@/lib/api';
 import { clearCache } from '@/lib/cache';
 import { clearPendingInvite } from '@/lib/pending-invite';
-import { googleWebEnabled, isExpoGo, isWeb } from '@/lib/runtime';
+import { googleWebEnabled, isExpoGo, isWeb, otpLength } from '@/lib/runtime';
 import { supabase } from '@/lib/supabase';
 
 type AuthContextValue = {
@@ -23,7 +23,7 @@ type AuthContextValue = {
   signInWithApple(): Promise<void>;
   /** Native: Google Sign-In SDK. Web: redirects to Google and back (the page reloads). */
   signInWithGoogle(): Promise<void>;
-  /** Emails a 6-digit sign-in code, creating the account on first use. */
+  /** Emails a sign-in code (otpLength digits), creating the account on first use. */
   requestEmailCode(email: string): Promise<void>;
   /** Signs in with the code from requestEmailCode. */
   verifyEmailCode(email: string, code: string): Promise<void>;
@@ -220,7 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyEmailCode = useCallback(async (email: string, code: string) => {
     const token = code.replace(/\D/g, '');
-    if (token.length !== 6) throw new Error('Enter the 6-digit code from the email.');
+    if (token.length !== otpLength) throw new Error(`Enter the ${otpLength}-digit code from the email.`);
     const { error } = await supabase.auth.verifyOtp({ email: normalizeEmail(email), token, type: 'email' });
     if (error) throw friendlyCode(error, 'Could not verify the code.', true);
   }, []);

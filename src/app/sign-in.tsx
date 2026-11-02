@@ -9,7 +9,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
 import { PRIVACY_URL, TERMS_URL, openLink } from '@/lib/links';
-import { devEmailLogin, googleWebEnabled, isExpoGo, isWeb } from '@/lib/runtime';
+import { devEmailLogin, googleWebEnabled, isExpoGo, isWeb, otpLength } from '@/lib/runtime';
 
 type Method = 'apple' | 'google' | 'send-code' | 'verify-code' | 'email';
 
@@ -95,10 +95,10 @@ export default function SignInScreen() {
   }
 
   function onCodeChange(text: string) {
-    const digits = text.replace(/\D/g, '').slice(0, 6);
+    const digits = text.replace(/\D/g, '').slice(0, otpLength);
     setCode(digits);
     // Pasted or autofilled codes sign in straight away.
-    if (digits.length === 6 && !busy) run('verify-code', digits);
+    if (digits.length === otpLength && !busy) run('verify-code', digits);
   }
 
   function changeEmail() {
@@ -226,29 +226,29 @@ export default function SignInScreen() {
             ) : (
               <>
                 <Text color="textSecondary" style={styles.devInset} accessibilityLiveRegion="polite">
-                  We sent a 6-digit code to <Text style={styles.strong}>{sentTo}</Text>. It can take a minute to
+                  We sent a {otpLength}-digit code to <Text style={styles.strong}>{sentTo}</Text>. It can take a minute to
                   arrive; check spam too.
                 </Text>
                 <Field
-                  label="6-digit code"
+                  label={`${otpLength}-digit code`}
                   value={code}
                   onChangeText={onCodeChange}
                   autoComplete="one-time-code"
                   textContentType="oneTimeCode"
                   keyboardType="number-pad"
                   inputMode="numeric"
-                  maxLength={6}
+                  maxLength={otpLength}
                   autoFocus
                   returnKeyType="done"
                   onSubmitEditing={() => {
-                    if (code.length === 6) run('verify-code');
+                    if (code.length === otpLength) run('verify-code');
                   }}
-                  placeholder="123456"
+                  placeholder={'12345678901'.slice(0, otpLength)}
                 />
                 <Button
                   title="Sign in"
                   loading={busy === 'verify-code'}
-                  disabled={!agreed || code.length !== 6 || (!!busy && busy !== 'verify-code')}
+                  disabled={!agreed || code.length !== otpLength || (!!busy && busy !== 'verify-code')}
                   onPress={() => run('verify-code')}
                   style={styles.devInset}
                 />
