@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="228" fill="#000"/>
+  
+  <defs>
+    <mask id="g" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <path fill="#fff" d="M340 212H600L732 344V764A48 48 0 0 1 684 812H340A48 48 0 0 1 292 764V260A48 48 0 0 1 340 212Z"/>
+      <path fill="none" stroke="#000" stroke-width="28" stroke-linejoin="round" d="M600 200V316A28 28 0 0 0 628 344H744"/>
+      <rect fill="#000" x="372" y="300" width="160" height="32" rx="16"/>
+      <rect fill="#000" x="372" y="372" width="260" height="32" rx="16"/>
+      <g transform="rotate(-45 512 610)">
+        <rect fill="#000" x="372" y="550" width="280" height="120" rx="60"/>
+        <rect fill="#fff" x="508" y="564" width="130" height="92" rx="46"/>
+        <rect fill="#fff" x="508" y="564" width="40" height="92"/>
+      </g>
+    </mask>
+  </defs>
+  <g transform="translate(512 512) scale(1) translate(-512 -512)">
+    <rect width="1024" height="1024" fill="#fff" mask="url(#g)"/>
+  </g>
+</svg>

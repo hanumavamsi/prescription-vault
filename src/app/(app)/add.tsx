@@ -1,4 +1,3 @@
-import { File } from 'expo-file-system';
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -23,6 +22,8 @@ import { HitSize, Radius, Spacing } from '@/constants/theme';
 import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
 import { createDocument, listProfiles } from '@/lib/api';
+import { discardLocalFiles } from '@/lib/bytes';
+import { confirm } from '@/lib/confirm';
 import { openSystemSettings, pickPdf, pickPhotos, scanDocument, ScanError } from '@/lib/scan';
 import type { DocType, LocalPage } from '@/lib/types';
 
@@ -48,16 +49,9 @@ function validateDate(value: string): string | null {
   return null;
 }
 
-/** Removes temporary page files (scans, resized photos, imported PDF copies) from the app cache. */
+/** Removes temporary page files (scans, resized photos, imported PDF copies; blob URLs on web). */
 function deleteLocalPages(pages: LocalPage[]) {
-  for (const p of pages) {
-    try {
-      const f = new File(p.uri);
-      if (f.exists) f.delete();
-    } catch {
-      // Best effort; the OS also clears the cache folder.
-    }
-  }
+  discardLocalFiles(pages.map((p) => p.uri));
 }
 
 export default function AddDocumentScreen() {
@@ -91,22 +85,36 @@ export default function AddDocumentScreen() {
   const dateError = validateDate(date);
   const canSave = pages.length > 0 && !!profileId && !dateError && !saving;
 
+  const unsaved = (pages.length > 0 && !done) || saving;
+
   // Ask before throwing away picked pages; block closing entirely while uploading.
-  usePreventRemove((pages.length > 0 && !done) || saving, () => {
+  usePreventRemove(unsaved, () => {
     if (saving) return;
-    Alert.alert('Discard this document?', 'The pages you added will not be saved.', [
-      { text: 'Keep editing', style: 'cancel' },
-      {
-        text: 'Discard',
-        style: 'destructive',
-        onPress: () => {
-          deleteLocalPages(pages);
-          // Lifting the prevention closes the screen via the effect below.
-          setDone(true);
-        },
-      },
-    ]);
+    void confirm({
+      title: 'Discard this document?',
+      message: 'The pages you added will not be saved.',
+      confirmText: 'Discard',
+      cancelText: 'Keep editing',
+      destructive: true,
+    }).then((ok) => {
+      if (!ok) return;
+      deleteLocalPages(pages);
+      // Lifting the prevention closes the screen via the effect below.
+      setDone(true);
+    });
   });
+
+  // Web: the browser's back button, reload and tab close bypass usePreventRemove; ask the browser to warn.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !unsaved || typeof window === 'undefined') return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Older browsers need returnValue set to show the prompt.
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [unsaved]);
 
   useEffect(() => {
     if (done && !saving) router.back();
@@ -136,10 +144,14 @@ export default function AddDocumentScreen() {
       });
     } catch (e) {
       if (e instanceof ScanError && e.needsSettings) {
-        Alert.alert('Permission needed', e.message, [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => void openSystemSettings() },
-        ]);
+        void confirm({
+          title: 'Permission needed',
+          message: e.message,
+          confirmText: 'Open Settings',
+          cancelText: 'Not now',
+        }).then((open) => {
+          if (open) void openSystemSettings();
+        });
       } else {
         setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
       }
@@ -149,6 +161,12 @@ export default function AddDocumentScreen() {
   }
 
   function addMore() {
+    if (Platform.OS === 'web') {
+      // No action sheet on web. The browser's photo picker also offers the camera on phones,
+      // and it must open straight from this tap.
+      void pick('photos');
+      return;
+    }
     Alert.alert('Add more pages', undefined, [
       { text: 'Scan with camera', onPress: () => void pick('scan') },
       { text: 'Choose photos', onPress: () => void pick('photos') },
@@ -254,7 +272,11 @@ export default function AddDocumentScreen() {
           <SourceChoice
             icon="doc.viewfinder"
             title="Scan with camera"
-            subtitle="Best for paper. Edges are cropped for you."
+            subtitle={
+              Platform.OS === 'web'
+                ? 'Best for paper. Take a clear photo of each page.'
+                : 'Best for paper. Edges are cropped for you.'
+            }
             loading={picking === 'scan'}
             disabled={!!picking}
             onPress={() => pick('scan')}

@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Switch, StyleSheet, View } from 'react-native';
+import { Switch, StyleSheet, View } from 'react-native';
 
 import { Button, ErrorState, Field, Icon, Loading, Row, Screen, Section, Text } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
@@ -10,11 +10,20 @@ import { deleteAccount, listProfiles, updateProfile } from '@/lib/api';
 import { useAppLock } from '@/lib/app-lock';
 import { useAuth } from '@/lib/auth';
 import { cacheSizeBytes, clearCache } from '@/lib/cache';
+import { confirm } from '@/lib/confirm';
 import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL, openLink } from '@/lib/links';
+import { isWeb } from '@/lib/runtime';
 
 function formatBytes(n: number) {
   if (n < 1024 * 1024) return `${Math.max(0, Math.round(n / 1024))} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Destructive confirmation (Alert on native, the browser dialog on web). */
+function confirmDestructive(title: string, message: string, action: string, onConfirm: () => void) {
+  confirm({ title, message, confirmText: action, destructive: true }).then((ok) => {
+    if (ok) onConfirm();
+  });
 }
 
 export default function SettingsScreen() {
@@ -40,7 +49,7 @@ export default function SettingsScreen() {
         email={user?.email}
         onSaved={profiles.refresh}
       />
-      <LockSection />
+      {!isWeb && <LockSection />}
       <StorageSection />
       <AboutSection />
       <Section>
@@ -48,10 +57,12 @@ export default function SettingsScreen() {
           title="Sign out"
           icon="rectangle.portrait.and.arrow.right"
           onPress={() =>
-            Alert.alert('Sign out?', 'Downloaded files will be removed from this phone.', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Sign out', style: 'destructive', onPress: () => signOut().catch(() => {}) },
-            ])
+            confirmDestructive(
+              'Sign out?',
+              isWeb ? 'You will need to sign in again on this browser.' : 'Downloaded files will be removed from this phone.',
+              'Sign out',
+              () => signOut().catch(() => {}),
+            )
           }
           chevron={false}
           last
@@ -193,6 +204,9 @@ function StorageSection() {
     }
   }
 
+  // The web app reads files straight from the server, so there is usually nothing stored to show.
+  if (isWeb && !size) return null;
+
   return (
     <Section
       title="Storage"
@@ -249,13 +263,11 @@ function DeleteAccountSection() {
   }
 
   function askFinal() {
-    Alert.alert(
+    confirmDestructive(
       'Delete account permanently?',
       'All your records and the profiles you manage will be deleted. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: doDelete },
-      ],
+      'Delete',
+      doDelete,
     );
   }
 

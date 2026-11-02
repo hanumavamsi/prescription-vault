@@ -50,6 +50,10 @@
     },
     "web": {
       "output": "single",
+      "name": "Rx Vault",
+      "shortName": "Rx Vault",
+      "lang": "en",
+      "description": "Keep your family's prescriptions and medical reports in one private place.",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [

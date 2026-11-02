@@ -1,8 +1,9 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, type Theme } from 'expo-router';
+import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo } from 'react';
-import { useColorScheme } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -36,6 +37,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors[scheme].background }}>
       <SafeAreaProvider>
         <ThemeProvider value={theme}>
+          {Platform.OS === 'web' && (
+            <Head>
+              <title>Rx Vault</title>
+            </Head>
+          )}
           <AuthProvider>
             <AppLockProvider>
               <RootNavigator />
@@ -56,7 +62,9 @@ function RootNavigator() {
     if (!initializing) SplashScreen.hideAsync().catch(() => {});
   }, [initializing]);
 
-  // An invite opened while signed out is resumed right after sign-in.
+  // An invite opened while signed out is resumed right after sign-in. On the web this also covers
+  // the Google redirect: the page reloads, the session is read from the URL during initializing,
+  // and the token comes back from localStorage.
   useEffect(() => {
     if (!signedIn) return;
     let cancelled = false;

@@ -1,12 +1,14 @@
 import { router, Stack, useLocalSearchParams, type Href } from 'expo-router';
 import { useState } from 'react';
-import { Alert, RefreshControl, Share, StyleSheet, View } from 'react-native';
+import { Platform, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Avatar, Button, ErrorState, Field, Loading, Row, Screen, Section, Text } from '@/components/ui';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
 import { createClaimInvite, deleteManagedProfile, getProfile, leaveSharedProfile, updateProfile } from '@/lib/api';
+import { confirm, showMessage } from '@/lib/confirm';
+import { copyText, shareText } from '@/lib/share';
 import type { ProfileWithRole } from '@/lib/types';
 
 function message(e: unknown) {
@@ -160,46 +162,54 @@ function DetailsSection({
 }
 
 function ManagedSections({ profile }: { profile: ProfileWithRole }) {
+  const theme = useTheme();
   const [inviting, setInviting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  /** Web only: the last invite link, shown so it can be copied when the browser can't share. */
+  const [inviteLink, setInviteLink] = useState<{ url: string; note?: string } | null>(null);
   const name = profile.display_name;
 
   const invite = async () => {
     setInviting(true);
+    setInviteLink(null);
     try {
       const url = await createClaimInvite(profile.id);
-      await Share.share({
-        message: `Hi ${name}, I've been keeping your prescriptions and medical reports in Rx Vault. Open this link to take over your records in your own account (link valid for 7 days): ${url}`,
-      });
+      const text = `Hi ${name}, I've been keeping your prescriptions and medical reports in Rx Vault. Open this link to take over your records in your own account (link valid for 7 days): ${url}`;
+      if (Platform.OS === 'web') setInviteLink({ url });
+      const result = await shareText(text, url);
+      if (result === 'copied') setInviteLink({ url, note: 'Invite message copied. Paste it into WhatsApp, SMS or email.' });
     } catch (e) {
-      Alert.alert('Could not create invite', message(e));
+      showMessage('Could not create invite', message(e));
     } finally {
       setInviting(false);
     }
   };
 
-  const confirmDelete = () => {
-    Alert.alert(
-      `Delete ${name}?`,
-      `This permanently deletes ${name}'s profile and all of their documents. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              await deleteManagedProfile(profile.id);
-              router.dismissTo('/' as Href);
-            } catch (e) {
-              setDeleting(false);
-              Alert.alert('Could not delete', message(e));
-            }
-          },
-        },
-      ],
-    );
+  const copyInviteLink = async () => {
+    if (!inviteLink) return;
+    const copied = await copyText(inviteLink.url);
+    setInviteLink({
+      url: inviteLink.url,
+      note: copied ? 'Link copied.' : 'Your browser blocked copying. Select the link above and copy it.',
+    });
+  };
+
+  const confirmDelete = async () => {
+    const ok = await confirm({
+      title: `Delete ${name}?`,
+      message: `This permanently deletes ${name}'s profile and all of their documents. This cannot be undone.`,
+      confirmText: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await deleteManagedProfile(profile.id);
+      router.dismissTo('/' as Href);
+    } catch (e) {
+      setDeleting(false);
+      showMessage('Could not delete', message(e));
+    }
   };
 
   return (
@@ -215,6 +225,22 @@ function ManagedSections({ profile }: { profile: ProfileWithRole }) {
           last
         />
       </Section>
+      {inviteLink && (
+        <View style={[styles.link, { backgroundColor: theme.backgroundElement }]}>
+          <Text variant="footnote" color="textSecondary">
+            Invite link (valid for 7 days)
+          </Text>
+          <Text selectable accessibilityLabel={`Invite link ${inviteLink.url}`}>
+            {inviteLink.url}
+          </Text>
+          <Button title="Copy link" icon="link" variant="secondary" onPress={copyInviteLink} />
+          {inviteLink.note && (
+            <Text color="textSecondary" accessibilityLiveRegion="polite">
+              {inviteLink.note}
+            </Text>
+          )}
+        </View>
+      )}
       <Button title={`Delete ${name}`} icon="trash" variant="destructive" onPress={confirmDelete} loading={deleting} />
     </>
   );
@@ -224,28 +250,22 @@ function ViewerSection({ profile }: { profile: ProfileWithRole }) {
   const [leaving, setLeaving] = useState(false);
   const name = profile.display_name;
 
-  const confirmLeave = () => {
-    Alert.alert(
-      `Stop viewing ${name}'s records?`,
-      `You will no longer see ${name}'s documents. They can invite you again later.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Stop viewing',
-          style: 'destructive',
-          onPress: async () => {
-            setLeaving(true);
-            try {
-              await leaveSharedProfile(profile.id);
-              router.dismissTo('/' as Href);
-            } catch (e) {
-              setLeaving(false);
-              Alert.alert('Something went wrong', message(e));
-            }
-          },
-        },
-      ],
-    );
+  const confirmLeave = async () => {
+    const ok = await confirm({
+      title: `Stop viewing ${name}'s records?`,
+      message: `You will no longer see ${name}'s documents. They can invite you again later.`,
+      confirmText: 'Stop viewing',
+      destructive: true,
+    });
+    if (!ok) return;
+    setLeaving(true);
+    try {
+      await leaveSharedProfile(profile.id);
+      router.dismissTo('/' as Href);
+    } catch (e) {
+      setLeaving(false);
+      showMessage('Something went wrong', message(e));
+    }
   };
 
   return (
@@ -260,4 +280,5 @@ function ViewerSection({ profile }: { profile: ProfileWithRole }) {
 
 const styles = StyleSheet.create({
   hero: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.two },
+  link: { padding: Spacing.three, gap: Spacing.two, borderRadius: Radius.large },
 });

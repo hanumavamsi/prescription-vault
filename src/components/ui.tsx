@@ -19,6 +19,7 @@ import {
   type TextProps as RNTextProps,
   type ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HitSize, MaxContentWidth, Radius, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -40,16 +41,26 @@ export function Text({ variant = 'body', color = 'text', style, ...rest }: TextP
 /** Scrollable page body on the grouped background, centered on wide screens. */
 export function Screen({ children, contentContainerStyle, ...rest }: ScrollViewProps & { children: ReactNode }) {
   const theme = useTheme();
+  const webBottom = useWebBottomInset();
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.background }}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.screen, contentContainerStyle]}
+      contentContainerStyle={[styles.screen, webBottom > 0 && { paddingBottom: Spacing.six + webBottom }, contentContainerStyle]}
       {...rest}>
       {children}
     </ScrollView>
   );
+}
+
+/**
+ * Web only: the iPhone home-indicator inset when running as a home-screen app (viewport-fit=cover).
+ * Native scroll views already get it from contentInsetAdjustmentBehavior, so this is 0 there.
+ */
+export function useWebBottomInset() {
+  const { bottom } = useSafeAreaInsets();
+  return Platform.OS === 'web' ? bottom : 0;
 }
 
 // ------------------------------------------------------------------ Icon

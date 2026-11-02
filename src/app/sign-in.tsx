@@ -9,18 +9,42 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
 import { PRIVACY_URL, TERMS_URL, openLink } from '@/lib/links';
-import { devEmailLogin, isExpoGo } from '@/lib/runtime';
+import { devEmailLogin, googleWebEnabled, isExpoGo, isWeb } from '@/lib/runtime';
+
+type Method = 'apple' | 'google' | 'send-code' | 'verify-code' | 'email';
+
+const RESEND_SECONDS = 30;
+// Native Google needs the Sign-In SDK (missing in Expo Go); web uses a redirect once it is enabled.
+const showGoogle = isWeb ? googleWebEnabled : !isExpoGo;
 
 export default function SignInScreen() {
   const theme = useTheme();
   const scheme = useColorScheme();
-  const { signInWithApple, signInWithGoogle, signInWithEmail } = useAuth();
+  const { signInWithApple, signInWithGoogle, requestEmailCode, verifyEmailCode, signInWithEmail } = useAuth();
   const [agreed, setAgreed] = useState(false);
-  const [busy, setBusy] = useState<'apple' | 'google' | 'email' | null>(null);
+  const [busy, setBusy] = useState<Method | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [codeEmail, setCodeEmail] = useState('');
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [resendAt, setResendAt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
+
+  const resendIn = Math.max(0, Math.ceil((resendAt - now) / 1000));
+
+  // Tick once a second while the resend cooldown runs.
+  useEffect(() => {
+    if (!sentTo || resendAt <= Date.now()) return;
+    const timer = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      if (t >= resendAt) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [sentTo, resendAt]);
 
   useEffect(() => {
     // Expo Go's bundle id isn't an authorized Apple client, so Apple sign-in can't complete there.
@@ -30,7 +54,7 @@ export default function SignInScreen() {
       .catch(() => setAppleAvailable(false));
   }, []);
 
-  async function run(kind: 'apple' | 'google' | 'email') {
+  async function run(kind: Method, codeOverride?: string) {
     if (!agreed) {
       setError('Please agree to the terms below to continue.');
       return;
@@ -39,13 +63,49 @@ export default function SignInScreen() {
     setError(null);
     setBusy(kind);
     try {
-      if (kind === 'email') await signInWithEmail(email, password);
-      else await (kind === 'apple' ? signInWithApple() : signInWithGoogle());
+      switch (kind) {
+        case 'apple':
+          await signInWithApple();
+          break;
+        case 'google':
+          await signInWithGoogle();
+          break;
+        case 'send-code': {
+          const to = (sentTo ?? codeEmail).trim();
+          await requestEmailCode(to);
+          setSentTo(to);
+          setCode('');
+          const t = Date.now();
+          setNow(t);
+          setResendAt(t + RESEND_SECONDS * 1000);
+          break;
+        }
+        case 'verify-code':
+          if (sentTo) await verifyEmailCode(sentTo, codeOverride ?? code);
+          break;
+        case 'email':
+          await signInWithEmail(email, password);
+          break;
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign-in failed. Please try again.');
     } finally {
       setBusy(null);
     }
+  }
+
+  function onCodeChange(text: string) {
+    const digits = text.replace(/\D/g, '').slice(0, 6);
+    setCode(digits);
+    // Pasted or autofilled codes sign in straight away.
+    if (digits.length === 6 && !busy) run('verify-code', digits);
+  }
+
+  function changeEmail() {
+    setSentTo(null);
+    setCode('');
+    setResendAt(0);
+    setError(null);
   }
 
   return (
@@ -124,7 +184,7 @@ export default function SignInScreen() {
             </View>
           )}
 
-          {!isExpoGo && (
+          {showGoogle && (
             <Button
               title="Continue with Google"
               variant={appleAvailable ? 'secondary' : 'primary'}
@@ -133,6 +193,78 @@ export default function SignInScreen() {
               onPress={() => run('google')}
             />
           )}
+
+          <View style={[styles.codeBox, { borderColor: theme.separator }]}>
+            {sentTo == null ? (
+              <>
+                <Field
+                  label="Email"
+                  value={codeEmail}
+                  onChangeText={setCodeEmail}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  keyboardType="email-address"
+                  inputMode="email"
+                  returnKeyType="send"
+                  onSubmitEditing={() => {
+                    if (codeEmail.trim()) run('send-code');
+                  }}
+                  placeholder="you@example.com"
+                />
+                <Button
+                  title="Email me a sign-in code"
+                  icon="envelope"
+                  variant={appleAvailable || showGoogle ? 'secondary' : 'primary'}
+                  loading={busy === 'send-code'}
+                  disabled={!agreed || !codeEmail.trim() || (!!busy && busy !== 'send-code')}
+                  onPress={() => run('send-code')}
+                  style={styles.devInset}
+                />
+              </>
+            ) : (
+              <>
+                <Text color="textSecondary" style={styles.devInset} accessibilityLiveRegion="polite">
+                  We sent a 6-digit code to <Text style={styles.strong}>{sentTo}</Text>. It can take a minute to
+                  arrive; check spam too.
+                </Text>
+                <Field
+                  label="6-digit code"
+                  value={code}
+                  onChangeText={onCodeChange}
+                  autoComplete="one-time-code"
+                  textContentType="oneTimeCode"
+                  keyboardType="number-pad"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    if (code.length === 6) run('verify-code');
+                  }}
+                  placeholder="123456"
+                />
+                <Button
+                  title="Sign in"
+                  loading={busy === 'verify-code'}
+                  disabled={!agreed || code.length !== 6 || (!!busy && busy !== 'verify-code')}
+                  onPress={() => run('verify-code')}
+                  style={styles.devInset}
+                />
+                <View style={styles.codeLinks}>
+                  <Button
+                    title={resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
+                    variant="plain"
+                    loading={busy === 'send-code'}
+                    disabled={resendIn > 0 || (!!busy && busy !== 'send-code')}
+                    onPress={() => run('send-code')}
+                  />
+                  <Button title="Use a different email" variant="plain" disabled={!!busy} onPress={changeEmail} />
+                </View>
+              </>
+            )}
+          </View>
 
           {devEmailLogin && (
             <View style={[styles.devBox, { borderColor: theme.separator }]}>
@@ -157,7 +289,7 @@ export default function SignInScreen() {
               />
               <Button
                 title="Sign in with email"
-                variant={isExpoGo ? 'primary' : 'secondary'}
+                variant="secondary"
                 loading={busy === 'email'}
                 disabled={!agreed || !email.trim() || password.length < 6 || (!!busy && busy !== 'email')}
                 onPress={() => run('email')}
@@ -185,6 +317,14 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   devInset: { marginHorizontal: Spacing.three },
+  codeBox: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.medium,
+    paddingVertical: Spacing.three,
+    gap: Spacing.two,
+  },
+  codeLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginHorizontal: Spacing.one },
+  strong: { fontWeight: '600' },
   content: {
     flexGrow: 1,
     justifyContent: 'space-between',

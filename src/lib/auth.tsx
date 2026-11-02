@@ -1,5 +1,6 @@
 /**
- * Authentication: Sign in with Apple (iOS) and Google, backed by Supabase Auth.
+ * Authentication: Sign in with Apple (iOS), Google and a one-time email code, backed by Supabase Auth.
+ * On the web, Google is a Supabase OAuth redirect and Apple is not offered.
  * This is the only module besides api.ts that talks to supabase directly.
  */
 import type * as GoogleModule from '@react-native-google-signin/google-signin';
@@ -12,7 +13,7 @@ import { Platform } from 'react-native';
 import { listProfiles, updateProfile } from '@/lib/api';
 import { clearCache } from '@/lib/cache';
 import { clearPendingInvite } from '@/lib/pending-invite';
-import { isExpoGo } from '@/lib/runtime';
+import { googleWebEnabled, isExpoGo, isWeb } from '@/lib/runtime';
 import { supabase } from '@/lib/supabase';
 
 type AuthContextValue = {
@@ -20,7 +21,12 @@ type AuthContextValue = {
   user: User | null;
   initializing: boolean;
   signInWithApple(): Promise<void>;
+  /** Native: Google Sign-In SDK. Web: redirects to Google and back (the page reloads). */
   signInWithGoogle(): Promise<void>;
+  /** Emails a 6-digit sign-in code, creating the account on first use. */
+  requestEmailCode(email: string): Promise<void>;
+  /** Signs in with the code from requestEmailCode. */
+  verifyEmailCode(email: string, code: string): Promise<void>;
   /** Development only (see devEmailLogin). Signs in, creating the account on first use. */
   signInWithEmail(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
@@ -34,6 +40,7 @@ const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 let googleConfigured = false;
 /** Loaded lazily: the native module is missing in Expo Go and would crash at import time. */
 function google(): typeof GoogleModule {
+  if (isWeb) throw new Error('Google sign-in SDK is not used on the web.');
   if (isExpoGo) throw new Error('Google sign-in is not available in Expo Go.');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require('@react-native-google-signin/google-signin') as typeof GoogleModule;
@@ -60,6 +67,33 @@ function friendly(e: unknown, fallback: string): Error {
     return new Error('No internet connection. Please check your connection and try again.');
   }
   return new Error(msg ? `${fallback} ${msg}` : fallback);
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeEmail(email: string) {
+  const e = email.trim().toLowerCase();
+  if (!EMAIL_RE.test(e)) throw new Error('Please enter a valid email address.');
+  return e;
+}
+
+/** Errors from the email-code endpoints, in plain words. */
+function friendlyCode(e: unknown, fallback: string, verifying = false): Error {
+  const msg = e instanceof Error ? e.message : '';
+  const status = typeof e === 'object' && e !== null && 'status' in e ? (e as { status: unknown }).status : null;
+  if (status === 429 || /rate limit|too many|security purposes|only request this after/i.test(msg)) {
+    return new Error('Too many attempts, wait a minute and try again.');
+  }
+  if (verifying && /expired|invalid|otp/i.test(msg)) {
+    return new Error('That code is wrong or has expired. Check the latest email or send a new code.');
+  }
+  if (!verifying && /invalid.*email|email.*invalid|validate email/i.test(msg)) {
+    return new Error('Please enter a valid email address.');
+  }
+  if (/signups? not allowed|signup is disabled/i.test(msg)) {
+    return new Error('New accounts are not open right now.');
+  }
+  return friendly(e, fallback);
 }
 
 /**
@@ -144,6 +178,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
+    if (isWeb) {
+      if (!googleWebEnabled) throw new Error('Google sign-in is not set up yet. Please use another sign-in option.');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin },
+      });
+      // On success the browser is already navigating to Google; the session is picked up on return.
+      if (error) throw friendly(error, 'Google sign-in failed.');
+      return;
+    }
     const GoogleSignin = configureGoogle();
     const { isErrorWithCode, statusCodes } = google();
     let idToken: string | null = null;
@@ -166,6 +210,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw friendly(error, 'Google sign-in failed.');
   }, []);
 
+  const requestEmailCode = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalizeEmail(email),
+      options: { shouldCreateUser: true },
+    });
+    if (error) throw friendlyCode(error, 'Could not send the code.');
+  }, []);
+
+  const verifyEmailCode = useCallback(async (email: string, code: string) => {
+    const token = code.replace(/\D/g, '');
+    if (token.length !== 6) throw new Error('Enter the 6-digit code from the email.');
+    const { error } = await supabase.auth.verifyOtp({ email: normalizeEmail(email), token, type: 'email' });
+    if (error) throw friendlyCode(error, 'Could not verify the code.', true);
+  }, []);
+
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     if (!__DEV__) throw new Error('Email sign-in is only available in development.');
     const creds = { email: email.trim(), password };
@@ -180,11 +239,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await clearCache().catch(() => {});
     await clearPendingInvite();
-    try {
-      const GoogleSignin = configureGoogle();
-      if (GoogleSignin.hasPreviousSignIn()) await GoogleSignin.signOut();
-    } catch {
-      // Google not configured or never used.
+    if (!isWeb) {
+      try {
+        const GoogleSignin = configureGoogle();
+        if (GoogleSignin.hasPreviousSignIn()) await GoogleSignin.signOut();
+      } catch {
+        // Google not configured or never used.
+      }
     }
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -200,10 +261,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initializing,
       signInWithApple,
       signInWithGoogle,
+      requestEmailCode,
+      verifyEmailCode,
       signInWithEmail,
       signOut,
     }),
-    [session, initializing, signInWithApple, signInWithGoogle, signInWithEmail, signOut],
+    [
+      session,
+      initializing,
+      signInWithApple,
+      signInWithGoogle,
+      requestEmailCode,
+      verifyEmailCode,
+      signInWithEmail,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

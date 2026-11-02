@@ -103,6 +103,7 @@ openai_api_key = "env(OPENAI_API_KEY)"
 
 # Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
 # are monitored, and you can view the emails that would have been sent from the web interface.
+# Rx Vault: sign-in codes sent by the local stack show up at http://127.0.0.1:54324
 [local_smtp]
 enabled = true
 # Port to use for the email testing server web interface.
@@ -157,11 +158,20 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+# Rx Vault: the Expo web dev server.
+site_url = "http://localhost:8081"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# Rx Vault: Expo web dev servers and EAS Hosting deployments (Google sign-in redirects back to the
+# page origin). Production: set the same in the dashboard (Authentication -> URL Configuration).
+additional_redirect_urls = [
+  "http://localhost:8081",
+  "http://localhost:8082",
+  "http://127.0.0.1:8081",
+  "https://*.expo.app",
+  "https://*.expo.app/**",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -197,7 +207,8 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+# Rx Vault: raised so local testing of the email-code sign-in doesn't hit the limit.
+email_sent = 30
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -248,6 +259,17 @@ otp_expiry = 3600
 # [auth.email.template.invite]
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
+
+# Rx Vault signs in with a 6-digit code ({{ .Token }}), not a link: a link would open Safari
+# instead of the home-screen web app. New users get "confirmation", returning users "magic_link".
+# Production: paste the same templates in the dashboard (Authentication -> Emails).
+[auth.email.template.magic_link]
+subject = "Your Rx Vault sign-in code"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.confirmation]
+subject = "Your Rx Vault sign-in code"
+content_path = "./supabase/templates/confirmation.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

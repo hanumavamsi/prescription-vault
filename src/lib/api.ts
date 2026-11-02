@@ -3,8 +3,9 @@
  * except auth calls in src/lib/auth.tsx.
  */
 import * as Crypto from 'expo-crypto';
-import { File } from 'expo-file-system';
 
+import { readBytes } from '@/lib/bytes';
+import { inviteBaseUrl } from '@/lib/runtime';
 import { supabase } from '@/lib/supabase';
 import type {
   DocType,
@@ -19,9 +20,6 @@ import type {
 
 const BUCKET = 'documents';
 export const MAX_PAGE_BYTES = 20 * 1024 * 1024;
-
-/** Base URL invite links point to. Universal link domain in production, app scheme as fallback. */
-const INVITE_BASE = process.env.EXPO_PUBLIC_INVITE_BASE_URL ?? 'prescriptionvault://invite';
 
 function must<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
@@ -153,7 +151,7 @@ export async function createDocument(
   try {
     for (let i = 0; i < input.pages.length; i++) {
       const page = input.pages[i];
-      const bytes = await new File(page.uri).arrayBuffer();
+      const bytes = await readBytes(page.uri);
       if (bytes.byteLength > MAX_PAGE_BYTES) throw new Error(`Page ${i + 1} is larger than 20 MB`);
       const ext = page.mime === 'application/pdf' ? 'pdf' : page.mime === 'image/png' ? 'png' : 'jpg';
       const path = `${input.profileId}/${doc.id}/${i + 1}-${Crypto.randomUUID()}.${ext}`;
@@ -189,7 +187,7 @@ export async function signedPageUrl(storagePath: string, expiresIn = 300): Promi
 // ------------------------------------------------------------------ family / invites
 
 export function inviteUrl(token: string) {
-  return `${INVITE_BASE}/${token}`;
+  return `${inviteBaseUrl()}/${token}`;
 }
 
 /** Link asking someone to let me view their records. */

@@ -1,6 +1,6 @@
 # Rx Vault (Prescription Vault)
 
-Store prescriptions and medical reports for yourself and your family. iOS + Android, built with Expo SDK 58 (React Native, TypeScript, expo-router) and Supabase (Postgres + RLS + Storage + Auth) hosted in **ap-south-1 (Mumbai)**.
+Store prescriptions and medical reports for yourself and your family. iOS + Android + a free web app / PWA (see [Web app (free)](#web-app-free)), built with Expo SDK 58 (React Native, TypeScript, expo-router) and Supabase (Postgres + RLS + Storage + Auth) hosted in **ap-south-1 (Mumbai)**.
 
 See `SPEC.md` for the product spec.
 
@@ -26,8 +26,8 @@ See `SPEC.md` for the product spec.
    supabase functions deploy delete-account
    ```
    It uses the built-in `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` secrets; nothing to configure.
-5. **Auth → URL configuration**: you do not need redirect URLs; native sign-in uses ID tokens.
-6. **Auth → Providers**: disable Email/Phone, enable **Apple** and **Google** (below).
+5. **Auth → URL configuration**: the native app needs no redirect URLs (it signs in with ID tokens). The web app does; see [Web app (free)](#web-app-free).
+6. **Auth → Providers**: keep **Email** enabled (one-time 6-digit code sign-in, used on web and offered on native too), disable Phone, enable **Apple** and **Google** (below).
 
 ### Sign in with Apple
 
@@ -119,7 +119,7 @@ Fill in `submit.production` in `eas.json` (Apple ID, App Store Connect app ID, t
 
 ### Store submission checklist
 
-- [ ] Replace placeholder app icon, adaptive icon and splash image in `assets/images` (and the template `assets/expo.icon`).
+- [ ] App icon, adaptive icon and splash are rendered from `assets/images/icon.svg` (monochrome document + capsule). Check them on a device; replace the template `assets/expo.icon` if it is still present.
 - [ ] Privacy policy and terms published at public URLs, set in env and in App Store Connect / Play Console.
 - [ ] **App Store → App Privacy**: Health & Fitness → *Health* (prescriptions and reports), Contact info → *Name*, *Email address*, Identifiers → *User ID*, User content → *Photos* / *Other user content*. All **linked to the user**, **not used for tracking**, purpose *App functionality*.
 - [ ] **Google Play → Data safety**: Health info, Personal info (name, email), Photos and files; collected, not shared with third parties, encrypted in transit, users can request deletion (in-app). Declare **Health** in the app content / health apps declaration.
@@ -128,6 +128,73 @@ Fill in `submit.production` in `eas.json` (Apple ID, App Store Connect app ID, t
 - [ ] App Review notes: sign-in is Sign in with Apple / Google only, so reviewers can use **Sign in with Apple** with their own Apple ID; no demo account is needed. Mention that invites are shared via the share sheet and that the app does not provide medical advice. If review asks for a demo account anyway, create a Google account for review and seed it with sample (non-real) documents.
 - [ ] Age rating: medical/treatment information → "Infrequent/Mild" in the questionnaire.
 - [ ] Screenshots at 6.9" and 6.5" iPhone sizes (iPad is disabled: `supportsTablet: false`).
+
+## Web app (free)
+
+The same code base also runs in the browser. People open the link in Safari or Chrome and add it to their home screen, where it opens full screen like an app. Hosting, the `*.expo.app` address and the Supabase backend are all on free tiers. The native app is unaffected.
+
+What is different on the web: sign-in is an **emailed 6-digit code** (and Google, if enabled); there is no Sign in with Apple, no Face ID lock, no auto-crop scanner ("Take photo" uses the phone camera through the browser) and no offline cache. The session is stored in the browser, which is less protected than the iPhone Keychain.
+
+### 1. Supabase cloud project (free)
+
+1. Create a project at <https://supabase.com/dashboard> in **South Asia (Mumbai), ap-south-1** (the free plan allows 2 projects; free projects pause after a week without activity, so open the app or dashboard now and then).
+2. Push the schema and deploy the account-deletion function:
+   ```bash
+   npx supabase login
+   npx supabase link --project-ref <your-project-ref>
+   npx supabase db push
+   npx supabase functions deploy delete-account
+   ```
+3. **Authentication → Sign In / Providers → Email**: enabled. Leave "Confirm email" on; the code itself proves the address.
+4. **Authentication → URL Configuration**:
+   - **Site URL**: `https://<name>.expo.app` (your EAS Hosting production address, chosen at the first deploy).
+   - **Redirect URLs**: `https://<name>.expo.app`, `https://<name>.expo.app/**` and `https://*.expo.app/**` (preview deployments), plus `http://localhost:8081` for local testing.
+5. **Authentication → Emails → Templates**: the app asks for a **code**, not a link. In both **Magic link** and **Confirm signup**, the body must show `{{ .Token }}`. Paste `supabase/templates/magic_link.html` and `supabase/templates/confirmation.html` (subject: "Your Rx Vault code"). Under **Authentication → Providers → Email**, keep the OTP length at 6.
+6. **Email delivery**: the built-in Supabase mailer is for testing only. It sends to a handful of addresses at most (about 2 emails per hour). For real families, set up free custom SMTP under **Authentication → Emails → SMTP Settings**:
+   - [Resend](https://resend.com): 3,000 emails/month, 100/day free. Host `smtp.resend.com`, port 465, user `resend`, password = API key.
+   - [Brevo](https://www.brevo.com): 300 emails/day free. Host `smtp-relay.brevo.com`, port 587.
+   Verify a sending domain (or use the provider's test domain), then raise **Authentication → Rate Limits → emails per hour**.
+7. **Google sign-in (optional)**: Google Cloud → Credentials → the **Web application** OAuth client → add the authorized redirect URI `https://<your-project-ref>.supabase.co/auth/v1/callback`. In Supabase → Providers → Google, enter that client's ID and secret. Then set `EXPO_PUBLIC_GOOGLE_WEB_ENABLED=true` (below). Leave it unset to show email-code sign-in only.
+
+### 2. Production environment
+
+`expo export` inlines `EXPO_PUBLIC_*` values at build time and loads `.env.production` ahead of `.env`, so your local `.env` keeps pointing at the local Supabase stack. Create `.env.production` (public client values only; add it to `.gitignore` if you prefer not to commit it):
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon / publishable key from Settings → API>
+EXPO_PUBLIC_INVITE_BASE_URL=https://<name>.expo.app/invite
+EXPO_PUBLIC_PRIVACY_URL=https://<your privacy policy>
+EXPO_PUBLIC_TERMS_URL=https://<your terms>
+EXPO_PUBLIC_SUPPORT_EMAIL=<support address>
+# EXPO_PUBLIC_GOOGLE_WEB_ENABLED=true
+```
+
+If `EXPO_PUBLIC_INVITE_BASE_URL` is unset or not `http(s)`, web invite links default to `<current origin>/invite`. These are public client values only; never put the service-role key here. For cloud builds, the same variables can live in EAS environment variables instead (`npx eas-cli@latest env:create --environment production`).
+
+### 3. Deploy to EAS Hosting (free)
+
+```bash
+npx eas-cli@latest login                        # account: hanumavamsi
+npm run web:export                              # expo export --platform web  ->  dist/
+npm run web:deploy                              # npx eas-cli@latest deploy --prod
+```
+
+The first deploy asks to link an EAS project (it writes `extra.eas.projectId` to `app.json`) and to pick a subdomain. The production URL is then `https://<name>.expo.app`. Run `npx eas-cli@latest deploy` without `--prod` for a preview URL. Re-run both scripts after every change.
+
+The web build is a single-page app (`web.output: "single"`): one `index.html` from `public/index.html` (PWA tags), with `public/` (manifest, icons) copied to the export root. After the first deploy, **check deep links**: open `https://<name>.expo.app/invite/test` directly in a new tab. It should load the app, not a 404. If it 404s, EAS Hosting is not falling back to `index.html` for that path. In that case, deploy `dist/` to Netlify or Cloudflare Pages instead (free; `public/_redirects` already rewrites every path to `index.html`), or ask Expo support. Then update the Site URL, Redirect URLs and `EXPO_PUBLIC_INVITE_BASE_URL` to the new address.
+
+Try it locally first with `npx expo start --web` (uses `.env` and the local Supabase stack).
+
+### 4. Install on iPhone ("Add to Home Screen")
+
+Send people the link `https://<name>.expo.app`, then:
+
+1. Open it in **Safari** (on iOS 16.4+ Chrome works too).
+2. Tap **Share** (the square with an up arrow), then **Add to Home Screen**, then **Add**.
+3. Open **Rx Vault** from the home screen. It runs full screen with its own icon. Sign in there, not in the Safari tab: home-screen apps keep their own separate sign-in.
+
+On Android Chrome: menu ⋮, then **Add to Home screen / Install app**. On desktop Chrome/Edge: the install icon in the address bar.
 
 ## 5. DPDP Act 2023 (India) notes
 
@@ -148,5 +215,7 @@ src/app/              routes (expo-router)
   (app)/              signed-in stack: home, person, document, profile, family, settings, add, profile/new
 src/lib/              api.ts (all data access), auth.tsx, app-lock.tsx, cache.ts, scan.ts, supabase.ts
 src/components/ui.tsx shared UI kit
-supabase/             migration + delete-account edge function
+supabase/             migration + delete-account edge function + email code templates
+public/               web: index.html template (PWA tags), manifest, icons, _redirects
+assets/images/        icon.svg (source) and the rendered app/splash/favicon PNGs
 ```

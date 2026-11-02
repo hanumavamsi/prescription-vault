@@ -1,5 +1,5 @@
 import { router, Stack, type Href } from 'expo-router';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { DocRow } from '@/components/doc-row';
 import { Avatar, Button, EmptyState, ErrorState, Icon, Loading, Screen, Section, Text, type IconName } from '@/components/ui';
@@ -72,7 +72,8 @@ export default function Home() {
 
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={false}
+          // A mouse can't swipe: on web keep the scrollbar so overflowing family members stay reachable.
+          showsHorizontalScrollIndicator={Platform.OS === 'web'}
           contentContainerStyle={styles.people}
           accessibilityLabel="Family members">
           {profiles.map((p) => (

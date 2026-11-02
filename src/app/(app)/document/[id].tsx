@@ -1,9 +1,6 @@
-import { Directory, File, Paths } from 'expo-file-system';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import * as Sharing from 'expo-sharing';
 import { useCallback, useRef, useState } from 'react';
 import {
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -37,6 +34,8 @@ import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteDocument, getDocument, getProfile, updateDocument } from '@/lib/api';
 import { getCachedPageUri } from '@/lib/cache';
+import { confirm, showMessage } from '@/lib/confirm';
+import { preparePageShare, shareFileName, sharePage } from '@/lib/share';
 import type { DocType, Document, DocumentPage } from '@/lib/types';
 
 export default function DocumentViewer() {
@@ -47,6 +46,7 @@ export default function DocumentViewer() {
   const [editing, setEditing] = useState(false);
   const [sharing, setSharing] = useState(false);
   const uris = useRef(new Map<string, string>());
+  const list = useRef<FlatList<DocumentPage>>(null);
 
   const { data, error, loading, refresh, setData } = useQuery(async () => {
     const { doc, pages } = await getDocument(id);
@@ -95,15 +95,21 @@ export default function DocumentViewer() {
     if (!page) return;
     setSharing(true);
     try {
-      if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing is not available on this device.');
       const src = uris.current.get(page.id) ?? (await getCachedPageUri(page));
-      const named = shareCopy(src, title, page, pages.length);
-      await Sharing.shareAsync(named.uri, { mimeType: page.mime, dialogTitle: title });
+      await sharePage({ uri: src, mime: page.mime, title, fileName: shareFileName(title, page, pages.length) });
     } catch (e) {
-      Alert.alert('Could not share', e instanceof Error ? e.message : String(e));
+      showMessage('Could not share', e instanceof Error ? e.message : String(e));
     } finally {
       setSharing(false);
     }
+  };
+
+  // Desktop browsers can't swipe between pages, so the web shows Previous / Next buttons.
+  const showPager = Platform.OS === 'web' && pages.length > 1;
+  const goTo = (index: number) => {
+    const i = Math.max(0, Math.min(pages.length - 1, index));
+    list.current?.scrollToIndex({ index: i, animated: true });
+    setCurrent(i);
   };
 
   return (
@@ -138,6 +144,7 @@ export default function DocumentViewer() {
           <View style={{ flex: 1 }} onLayout={onLayout}>
             {size && (
               <FlatList
+                ref={list}
                 data={pages}
                 horizontal
                 pagingEnabled
@@ -154,7 +161,15 @@ export default function DocumentViewer() {
                     width={size.width}
                     height={size.height}
                     label={pages.length > 1 ? pageLabel(index) : title}
-                    onReady={(uri) => uris.current.set(item.id, uri)}
+                    onReady={(uri) => {
+                      uris.current.set(item.id, uri);
+                      preparePageShare({
+                        uri,
+                        mime: item.mime,
+                        title,
+                        fileName: shareFileName(title, item, pages.length),
+                      });
+                    }}
                   />
                 )}
               />
@@ -168,6 +183,24 @@ export default function DocumentViewer() {
                 {pageLabel(Math.min(current, pages.length - 1))}
               </Text>
             </View>
+          </View>
+        )}
+        {showPager && (
+          <View style={[styles.pager, { borderTopColor: theme.separator }]}>
+            <Button
+              title="Previous"
+              variant="secondary"
+              onPress={() => goTo(current - 1)}
+              disabled={current <= 0}
+              style={styles.pagerButton}
+            />
+            <Button
+              title="Next"
+              variant="secondary"
+              onPress={() => goTo(current + 1)}
+              disabled={current >= pages.length - 1}
+              style={styles.pagerButton}
+            />
           </View>
         )}
       </View>
@@ -189,22 +222,6 @@ export default function DocumentViewer() {
       )}
     </>
   );
-}
-
-/** Copies the cached page to a readable file name so the share sheet doesn't show a hash. */
-function shareCopy(src: string, title: string, page: DocumentPage, total: number) {
-  const ext = page.mime === 'application/pdf' ? 'pdf' : page.mime === 'image/png' ? 'png' : 'jpg';
-  const safe = title.replace(/[\\/:*?"<>|\r\n\t.]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Document';
-  const name = total > 1 ? `${safe} - page ${page.page_no}.${ext}` : `${safe}.${ext}`;
-  try {
-    const dir = new Directory(Paths.cache, 'share');
-    if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
-    const dest = new File(dir, name);
-    new File(src).copySync(dest, { overwrite: true });
-    return dest;
-  } catch {
-    return new File(src);
-  }
 }
 
 // ------------------------------------------------------------------ edit sheet
@@ -281,29 +298,23 @@ function EditSheet({
     }
   };
 
-  const confirmDelete = () => {
-    Alert.alert(
-      'Delete this document?',
-      'All its pages will be permanently deleted for everyone who can see them. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              await deleteDocument(doc.id);
-              onDeleted();
-            } catch (e) {
-              setError(e instanceof Error ? e.message : String(e));
-            } finally {
-              setDeleting(false);
-            }
-          },
-        },
-      ],
-    );
+  const confirmDelete = async () => {
+    const ok = await confirm({
+      title: 'Delete this document?',
+      message: 'All its pages will be permanently deleted for everyone who can see them. This cannot be undone.',
+      confirmText: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await deleteDocument(doc.id);
+      onDeleted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const busy = saving || deleting;
@@ -459,4 +470,11 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   dateButton: { flex: 1, paddingHorizontal: Spacing.two },
+  pager: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    padding: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  pagerButton: { flex: 1 },
 });

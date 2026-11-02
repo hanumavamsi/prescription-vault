@@ -1,0 +1,3 @@
+# Netlify / Cloudflare Pages: serve the single-page app for every route (deep links like /invite/<token>).
+# Ignored by EAS Hosting.
+/*    /index.html   200

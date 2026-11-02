@@ -1,6 +1,6 @@
 import { router, Stack } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, Share, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import {
   Avatar,
@@ -16,6 +16,8 @@ import { HitSize, Radius, Spacing } from '@/constants/theme';
 import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
 import { createViewInvite, listMyViewers, listProfiles, revokeGrant } from '@/lib/api';
+import { confirm, showMessage } from '@/lib/confirm';
+import { copyText, shareText } from '@/lib/share';
 import type { Viewer } from '@/lib/types';
 
 /** `since` is a UTC timestamp; show the local calendar date (formatDate is for plain YYYY-MM-DD). */
@@ -41,15 +43,19 @@ export default function FamilyScreen() {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  /** Web only: the last invite link, shown so it can be copied when the browser can't share. */
+  const [inviteLink, setInviteLink] = useState<{ url: string; note?: string } | null>(null);
 
   async function invite() {
     setInviting(true);
     setInviteError(null);
+    setInviteLink(null);
     try {
       const url = await createViewInvite();
-      await Share.share({
-        message: `I'd like to be able to see your prescriptions and reports in Rx Vault so I can help you. I can only view them, not change anything. Open this link to approve or decline (valid for 7 days): ${url}`,
-      });
+      const message = `I'd like to be able to see your prescriptions and reports in Rx Vault so I can help you. I can only view them, not change anything. Open this link to approve or decline (valid for 7 days): ${url}`;
+      if (Platform.OS === 'web') setInviteLink({ url });
+      const result = await shareText(message, url);
+      if (result === 'copied') setInviteLink({ url, note: 'Invite message copied. Paste it into WhatsApp, SMS or email.' });
     } catch (e) {
       setInviteError(e instanceof Error ? e.message : 'Could not create the invite link. Please try again.');
     } finally {
@@ -57,16 +63,24 @@ export default function FamilyScreen() {
     }
   }
 
-  function confirmRemove(v: Viewer) {
+  async function confirmRemove(v: Viewer) {
     const name = v.display_name || 'This person';
-    Alert.alert(
-      `Remove ${v.display_name || 'this person'}?`,
-      `${name} will no longer be able to see your prescriptions and reports. You can invite them again later.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => void remove(v) },
-      ],
-    );
+    const ok = await confirm({
+      title: `Remove ${v.display_name || 'this person'}?`,
+      message: `${name} will no longer be able to see your prescriptions and reports. You can invite them again later.`,
+      confirmText: 'Remove',
+      destructive: true,
+    });
+    if (ok) void remove(v);
+  }
+
+  async function copyInviteLink() {
+    if (!inviteLink) return;
+    const copied = await copyText(inviteLink.url);
+    setInviteLink({
+      url: inviteLink.url,
+      note: copied ? 'Link copied.' : 'Your browser blocked copying. Select the link above and copy it.',
+    });
   }
 
   async function remove(v: Viewer) {
@@ -75,7 +89,7 @@ export default function FamilyScreen() {
       await revokeGrant(v.grant_id);
       setData((d) => (d ? { ...d, viewers: d.viewers.filter((x) => x.grant_id !== v.grant_id) } : d));
     } catch (e) {
-      Alert.alert('Could not remove access', e instanceof Error ? e.message : 'Please try again.');
+      showMessage('Could not remove access', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setRemoving(null);
     }
@@ -124,6 +138,22 @@ export default function FamilyScreen() {
             <Text color="danger" accessibilityRole="alert">
               {inviteError}
             </Text>
+          )}
+          {inviteLink && (
+            <View style={[styles.link, { backgroundColor: theme.backgroundSelected }]}>
+              <Text variant="footnote" color="textSecondary">
+                Invite link (valid for 7 days)
+              </Text>
+              <Text selectable accessibilityLabel={`Invite link ${inviteLink.url}`}>
+                {inviteLink.url}
+              </Text>
+              <Button title="Copy link" icon="link" variant="secondary" onPress={copyInviteLink} />
+              {inviteLink.note && (
+                <Text color="textSecondary" accessibilityLiveRegion="polite">
+                  {inviteLink.note}
+                </Text>
+              )}
+            </View>
           )}
         </View>
       </Section>
@@ -223,6 +253,7 @@ function RemoveButton({ label, onPress, busy }: { label: string; onPress: () => 
 const styles = StyleSheet.create({
   card: { padding: Spacing.three, gap: Spacing.three },
   banner: { paddingHorizontal: Spacing.three },
+  link: { padding: Spacing.three, gap: Spacing.two, borderRadius: Radius.medium },
   remove: {
     minHeight: HitSize - 8,
     minWidth: 88,

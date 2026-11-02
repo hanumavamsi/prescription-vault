@@ -11,6 +11,8 @@ if (!url || !anonKey) {
   throw new Error('Missing EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY. Copy .env.example to .env.');
 }
 
+const isWeb = Platform.OS === 'web';
+
 // SecureStore values are capped near 2 KB, so the session is split across chunks.
 const CHUNK = 1800;
 
@@ -43,16 +45,25 @@ const secureStorage = {
 };
 
 export const supabase = createClient(url, anonKey, {
-  auth: {
-    storage: Platform.OS === 'web' ? undefined : secureStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
+  auth: isWeb
+    ? {
+        // Web: supabase-js keeps the session in localStorage (its default in a browser) and
+        // finishes the Google redirect by exchanging the ?code= in the URL on load.
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+        flowType: 'pkce',
+      }
+    : {
+        storage: secureStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+      },
 });
 
-// Refresh tokens only while the app is in the foreground.
-if (Platform.OS !== 'web') {
+// Refresh tokens only while the app is in the foreground. (The browser client handles this itself.)
+if (!isWeb) {
   AppState.addEventListener('change', (state) => {
     if (state === 'active') supabase.auth.startAutoRefresh();
     else supabase.auth.stopAutoRefresh();

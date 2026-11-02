@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, SectionList, StyleSheet, View } from 'react-native';
 
 import { DocRow } from '@/components/doc-row';
-import { Button, EmptyState, ErrorState, Icon, Loading, Screen, Segmented, Text, type IconName } from '@/components/ui';
+import { Button, EmptyState, ErrorState, Icon, Loading, Screen, Segmented, Text, useWebBottomInset, type IconName } from '@/components/ui';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
@@ -38,6 +38,7 @@ export default function PersonTimeline() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const [filter, setFilter] = useState<Filter>('all');
+  const webBottom = useWebBottomInset();
 
   const { data, error, loading, refreshing, refresh } = useQuery(async () => {
     const [profile, docs] = await Promise.all([getProfile(id), listDocuments(id)]);
@@ -117,7 +118,7 @@ export default function PersonTimeline() {
       <SectionList
         style={{ flex: 1, backgroundColor: theme.background }}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, webBottom > 0 && { paddingBottom: Spacing.six + webBottom }]}
         sections={sections}
         keyExtractor={(d) => d.id}
         stickySectionHeadersEnabled={false}
