@@ -1,6 +1,6 @@
 import { router, Stack } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Field, Icon, Screen, Section, Text } from '@/components/ui';
 import { HitSize, Radius, Spacing } from '@/constants/theme';
@@ -164,5 +164,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.medium,
   },
   note: { paddingHorizontal: Spacing.three, textAlign: 'center' },
-  headerButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.one },
+  // The web header has no side inset of its own.
+  headerButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Platform.OS === 'web' ? Spacing.three : Spacing.one },
 });

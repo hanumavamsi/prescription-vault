@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, type Theme } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, useSegments, type Theme } from 'expo-router';
 import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -57,6 +57,10 @@ export default function RootLayout() {
 function RootNavigator() {
   const { session, initializing } = useAuth();
   const signedIn = !!session;
+  const segments = useSegments();
+  // Web: wait until the auth guard has left the sign-in route. Pushing earlier races the guard's
+  // redirect, which turns /invite/<token> into /?token=<token> and drops the invite.
+  const settled = Platform.OS !== 'web' || segments[0] !== 'sign-in';
 
   useEffect(() => {
     if (!initializing) SplashScreen.hideAsync().catch(() => {});
@@ -66,7 +70,7 @@ function RootNavigator() {
   // the Google redirect: the page reloads, the session is read from the URL during initializing,
   // and the token comes back from localStorage.
   useEffect(() => {
-    if (!signedIn) return;
+    if (!signedIn || !settled) return;
     let cancelled = false;
     getPendingInvite().then((token) => {
       if (cancelled || !token) return;
@@ -77,7 +81,7 @@ function RootNavigator() {
     return () => {
       cancelled = true;
     };
-  }, [signedIn]);
+  }, [signedIn, settled]);
 
   // Keep the splash screen up until the stored session has been read.
   if (initializing) return null;
@@ -93,7 +97,12 @@ function RootNavigator() {
       {/* Reachable signed in or out; when signed out it stores the token and sends you to sign-in. */}
       <Stack.Screen
         name="invite/[token]"
-        options={{ headerShown: true, title: 'Invitation', headerBackButtonDisplayMode: 'minimal' }}
+        options={{
+          headerShown: true,
+          title: 'Invitation',
+          headerBackButtonDisplayMode: 'minimal',
+          ...(Platform.OS === 'web' && { headerTitleAlign: 'center' as const }),
+        }}
       />
     </Stack>
   );

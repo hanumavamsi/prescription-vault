@@ -9,7 +9,7 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-00000000000b', 'b@test.dev', '{}'),
   ('00000000-0000-0000-0000-00000000000c', 'c@test.dev', '{}');
 
-select is((select count(*)::int from profiles where user_id is not null), 3, 'signup trigger creates own profiles');
+select is((select count(*)::int from profiles where user_id in ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000c')), 3, 'signup trigger creates own profiles');
 select is((select display_name from profiles where user_id = '00000000-0000-0000-0000-00000000000a'), 'Asha', 'name from metadata');
 select is((select display_name from profiles where user_id = '00000000-0000-0000-0000-00000000000b'), 'b', 'name from email');
 

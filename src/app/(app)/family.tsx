@@ -20,6 +20,9 @@ import { confirm, showMessage } from '@/lib/confirm';
 import { copyText, shareText } from '@/lib/share';
 import type { Viewer } from '@/lib/types';
 
+/** Web: whether the browser has a share sheet (iPhone Safari, Android Chrome). */
+const canWebShare = Platform.OS === 'web' && typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
 /** `since` is a UTC timestamp; show the local calendar date (formatDate is for plain YYYY-MM-DD). */
 function formatTimestamp(ts: string) {
   const d = new Date(ts);
@@ -43,8 +46,8 @@ export default function FamilyScreen() {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
-  /** Web only: the last invite link, shown so it can be copied when the browser can't share. */
-  const [inviteLink, setInviteLink] = useState<{ url: string; note?: string } | null>(null);
+  /** Web only: the last invite link, shown so it can be shared again or copied when the browser can't share. */
+  const [inviteLink, setInviteLink] = useState<{ url: string; message: string; note?: string } | null>(null);
 
   async function invite() {
     setInviting(true);
@@ -53,9 +56,12 @@ export default function FamilyScreen() {
     try {
       const url = await createViewInvite();
       const message = `I'd like to be able to see your prescriptions and reports in Rx Vault so I can help you. I can only view them, not change anything. Open this link to approve or decline (valid for 7 days): ${url}`;
-      if (Platform.OS === 'web') setInviteLink({ url });
-      const result = await shareText(message, url);
-      if (result === 'copied') setInviteLink({ url, note: 'Invite message copied. Paste it into WhatsApp, SMS or email.' });
+      if (Platform.OS === 'web') {
+        setInviteLink({ url, message });
+        await shareInvite({ url, message });
+        return;
+      }
+      await shareText(message, url);
     } catch (e) {
       setInviteError(e instanceof Error ? e.message : 'Could not create the invite link. Please try again.');
     } finally {
@@ -74,11 +80,24 @@ export default function FamilyScreen() {
     if (ok) void remove(v);
   }
 
+  /**
+   * Web: the share sheet, else the clipboard. Safari refuses both when the tap is too old (the link
+   * was being created), so a failure just asks for another tap on Share or Copy link.
+   */
+  async function shareInvite(link: { url: string; message: string }) {
+    try {
+      const result = await shareText(link.message, link.url);
+      if (result === 'copied') setInviteLink({ ...link, note: 'Invite message copied. Paste it into WhatsApp, SMS or email.' });
+    } catch {
+      setInviteLink({ ...link, note: 'Tap Share or Copy link to send it.' });
+    }
+  }
+
   async function copyInviteLink() {
     if (!inviteLink) return;
     const copied = await copyText(inviteLink.url);
     setInviteLink({
-      url: inviteLink.url,
+      ...inviteLink,
       note: copied ? 'Link copied.' : 'Your browser blocked copying. Select the link above and copy it.',
     });
   }
@@ -147,6 +166,9 @@ export default function FamilyScreen() {
               <Text selectable accessibilityLabel={`Invite link ${inviteLink.url}`}>
                 {inviteLink.url}
               </Text>
+              {canWebShare && (
+                <Button title="Share" icon="square.and.arrow.up" variant="secondary" onPress={() => shareInvite(inviteLink)} />
+              )}
               <Button title="Copy link" icon="link" variant="secondary" onPress={copyInviteLink} />
               {inviteLink.note && (
                 <Text color="textSecondary" accessibilityLiveRegion="polite">

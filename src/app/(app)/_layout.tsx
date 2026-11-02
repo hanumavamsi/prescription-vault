@@ -19,6 +19,8 @@ export default function AppLayout() {
         headerShadowVisible: false,
         headerLargeTitleShadowVisible: false,
         headerBackButtonDisplayMode: 'minimal',
+        // Web defaults to left-aligned titles, which crowd the modals' Cancel button; match iOS.
+        ...(Platform.OS === 'web' && { headerTitleAlign: 'center' as const }),
         contentStyle: { backgroundColor: theme.background },
       }}>
       <Stack.Screen name="index" options={{ title: 'Rx Vault', headerLargeTitleEnabled: ios }} />

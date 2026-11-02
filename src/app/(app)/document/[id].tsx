@@ -274,6 +274,14 @@ function EditSheet({
     setError(null);
   };
 
+  // react-native-web calls onShow only when the slide-in animation ends, which would wipe anything
+  // typed in the first moments. On the web, reset while rendering the opening instead.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (Platform.OS === 'web' && visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) reset();
+  }
+
   const dateError = !isValidISODate(date)
     ? 'Enter the date as YYYY-MM-DD, for example ' + todayISO()
     : date > todayISO()
@@ -324,7 +332,7 @@ function EditSheet({
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onShow={reset}
+      onShow={Platform.OS === 'web' ? undefined : reset}
       onRequestClose={() => {
         if (!busy) onClose();
       }}>

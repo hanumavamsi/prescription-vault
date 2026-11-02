@@ -11,6 +11,9 @@ import { confirm, showMessage } from '@/lib/confirm';
 import { copyText, shareText } from '@/lib/share';
 import type { ProfileWithRole } from '@/lib/types';
 
+/** Web: whether the browser has a share sheet (iPhone Safari, Android Chrome). */
+const canWebShare = Platform.OS === 'web' && typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
 }
@@ -165,8 +168,8 @@ function ManagedSections({ profile }: { profile: ProfileWithRole }) {
   const theme = useTheme();
   const [inviting, setInviting] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  /** Web only: the last invite link, shown so it can be copied when the browser can't share. */
-  const [inviteLink, setInviteLink] = useState<{ url: string; note?: string } | null>(null);
+  /** Web only: the last invite link, shown so it can be shared again or copied when the browser can't share. */
+  const [inviteLink, setInviteLink] = useState<{ url: string; message: string; note?: string } | null>(null);
   const name = profile.display_name;
 
   const invite = async () => {
@@ -175,9 +178,12 @@ function ManagedSections({ profile }: { profile: ProfileWithRole }) {
     try {
       const url = await createClaimInvite(profile.id);
       const text = `Hi ${name}, I've been keeping your prescriptions and medical reports in Rx Vault. Open this link to take over your records in your own account (link valid for 7 days): ${url}`;
-      if (Platform.OS === 'web') setInviteLink({ url });
-      const result = await shareText(text, url);
-      if (result === 'copied') setInviteLink({ url, note: 'Invite message copied. Paste it into WhatsApp, SMS or email.' });
+      if (Platform.OS === 'web') {
+        setInviteLink({ url, message: text });
+        await shareInvite({ url, message: text });
+        return;
+      }
+      await shareText(text, url);
     } catch (e) {
       showMessage('Could not create invite', message(e));
     } finally {
@@ -185,11 +191,21 @@ function ManagedSections({ profile }: { profile: ProfileWithRole }) {
     }
   };
 
+  /** Web: see shareInvite in family.tsx — a refused share just asks for another tap. */
+  const shareInvite = async (link: { url: string; message: string }) => {
+    try {
+      const result = await shareText(link.message, link.url);
+      if (result === 'copied') setInviteLink({ ...link, note: 'Invite message copied. Paste it into WhatsApp, SMS or email.' });
+    } catch {
+      setInviteLink({ ...link, note: 'Tap Share or Copy link to send it.' });
+    }
+  };
+
   const copyInviteLink = async () => {
     if (!inviteLink) return;
     const copied = await copyText(inviteLink.url);
     setInviteLink({
-      url: inviteLink.url,
+      ...inviteLink,
       note: copied ? 'Link copied.' : 'Your browser blocked copying. Select the link above and copy it.',
     });
   };
@@ -233,6 +249,9 @@ function ManagedSections({ profile }: { profile: ProfileWithRole }) {
           <Text selectable accessibilityLabel={`Invite link ${inviteLink.url}`}>
             {inviteLink.url}
           </Text>
+          {canWebShare && (
+            <Button title="Share" icon="square.and.arrow.up" variant="secondary" onPress={() => shareInvite(inviteLink)} />
+          )}
           <Button title="Copy link" icon="link" variant="secondary" onPress={copyInviteLink} />
           {inviteLink.note && (
             <Text color="textSecondary" accessibilityLiveRegion="polite">

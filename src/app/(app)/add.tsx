@@ -695,5 +695,6 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     borderRadius: Radius.medium,
   },
-  headerButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.one },
+  // The web header has no side inset of its own.
+  headerButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Platform.OS === 'web' ? Spacing.three : Spacing.one },
 });

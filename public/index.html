@@ -62,9 +62,20 @@
         outline: 2px solid #000000;
         outline-offset: 2px;
       }
+      /* Text fields always count as focus-visible (also on tap); keep their ring soft and rounded. */
+      input:focus-visible,
+      textarea:focus-visible {
+        outline: 2px solid rgba(60, 60, 67, 0.3);
+        outline-offset: 2px;
+        border-radius: 8px;
+      }
       @media (prefers-color-scheme: dark) {
         :focus-visible {
           outline-color: #ffffff;
+        }
+        input:focus-visible,
+        textarea:focus-visible {
+          outline-color: rgba(235, 235, 245, 0.3);
         }
       }
     </style>
