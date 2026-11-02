@@ -5,7 +5,7 @@
 --   * access_grants give a viewer read-only access to another user's own profile, after that user approves an invite.
 --   * Editors of a profile = its user or its manager. Viewers = editors + active grantees.
 
-create extension if not exists pgcrypto;
+create extension if not exists pgcrypto with schema extensions;
 
 -- ---------------------------------------------------------------- tables
 
@@ -54,7 +54,7 @@ create index access_grants_profile_idx on public.access_grants(profile_id);
 
 create table public.invites (
   id          uuid primary key default gen_random_uuid(),
-  token       text not null unique default encode(gen_random_bytes(18), 'hex'),
+  token       text not null unique default encode(extensions.gen_random_bytes(18), 'hex'),
   from_user   uuid not null references auth.users(id) on delete cascade,
   purpose     text not null check (purpose in ('view', 'claim')),
   profile_id  uuid references public.profiles(id) on delete cascade,

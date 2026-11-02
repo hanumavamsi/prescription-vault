@@ -46,3 +46,4 @@ example
 
 # store credentials
 google-play-service-account.json
+.env.production
