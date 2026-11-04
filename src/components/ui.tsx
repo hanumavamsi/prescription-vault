@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HitSize, MaxContentWidth, Radius, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import type { ProfileRole } from '@/lib/types';
 
 // ------------------------------------------------------------------ Text
 
@@ -248,7 +249,28 @@ export function Row({ title, subtitle, value, left, icon, onPress, destructive, 
 
 // ------------------------------------------------------------------ Avatar
 
-export function Avatar({ name, size = 48, dashed }: { name: string; size?: number; dashed?: boolean }) {
+/** Who a profile is to me, as shown on avatars and in the legend. */
+export const roleColorKey = { self: 'roleSelf', viewer: 'roleShared', managed: 'roleManaged' } as const satisfies Record<
+  ProfileRole,
+  keyof ReturnType<typeof useTheme>
+>;
+export const roleLabel = { self: 'Me', viewer: 'Shared with me', managed: 'Managed by me' } as const satisfies Record<
+  ProfileRole,
+  string
+>;
+
+export function Avatar({
+  name,
+  size = 48,
+  dashed,
+  role,
+}: {
+  name: string;
+  size?: number;
+  dashed?: boolean;
+  /** Draws a coloured ring for the profile's role. */
+  role?: ProfileRole;
+}) {
   const theme = useTheme();
   const initials = name
     .trim()
@@ -256,6 +278,7 @@ export function Avatar({ name, size = 48, dashed }: { name: string; size?: numbe
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('');
+  const ring = role ? theme[roleColorKey[role]] : undefined;
   return (
     <View
       accessibilityElementsHidden
@@ -267,9 +290,9 @@ export function Avatar({ name, size = 48, dashed }: { name: string; size?: numbe
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: dashed ? 'transparent' : theme.backgroundSelected,
-        borderWidth: dashed ? 1.5 : 0,
+        borderWidth: dashed ? 1.5 : ring ? Math.max(2, Math.round(size / 20)) : 0,
         borderStyle: dashed ? 'dashed' : 'solid',
-        borderColor: theme.textTertiary,
+        borderColor: ring ?? theme.textTertiary,
       }}>
       <RNText style={{ fontSize: size * 0.38, fontWeight: '600', color: theme.text }} allowFontScaling={false}>
         {initials || '?'}
@@ -322,6 +345,51 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             style={[styles.segment, active && { backgroundColor: theme.backgroundElement }]}>
             <Text variant="callout" style={{ fontWeight: active ? '600' : '400' }}>
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// ------------------------------------------------------------------ Chips
+
+/** Single-choice pills that wrap onto new lines; lighter than Segmented for secondary filters. */
+export function Chips<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  /** Read by screen readers for the group. */
+  label: string;
+}) {
+  const theme = useTheme();
+  return (
+    <View accessibilityRole="radiogroup" accessibilityLabel={label} style={styles.chips}>
+      {options.map((o) => {
+        const active = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: active }}
+            accessibilityLabel={o.label}
+            onPress={() => onChange(o.value)}
+            hitSlop={4}
+            style={({ pressed }) => [
+              styles.chip,
+              active
+                ? { backgroundColor: theme.tint, borderColor: theme.tint }
+                : { backgroundColor: theme.backgroundElement, borderColor: theme.separator },
+              pressed && { opacity: 0.7 },
+            ]}>
+            <Text variant="callout" style={{ color: active ? theme.onTint : theme.text, fontWeight: active ? '600' : '400' }}>
               {o.label}
             </Text>
           </Pressable>
@@ -430,6 +498,15 @@ const styles = StyleSheet.create({
   input: { minHeight: 32, paddingVertical: Platform.select({ android: 0, default: 4 }) },
   segmented: { flexDirection: 'row', borderRadius: Radius.small + 1, padding: 2 },
   segment: { flex: 1, minHeight: HitSize - 4, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.small },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  chip: {
+    minHeight: 36,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   empty: { alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.six, paddingHorizontal: Spacing.four },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

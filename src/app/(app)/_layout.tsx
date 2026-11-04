@@ -6,6 +6,12 @@ import { useTheme } from '@/hooks/use-theme';
 
 const ios = Platform.OS === 'ios';
 
+/**
+ * Keep Home under every screen. Without this, a screen opened straight from a URL, a browser
+ * refresh or a link is alone in the stack and has no back button.
+ */
+export const unstable_settings = { anchor: 'index' };
+
 export default function AppLayout() {
   const theme = useTheme();
   return (
@@ -32,6 +38,10 @@ export default function AppLayout() {
       <Stack.Screen
         name="add"
         options={{ title: 'Add document', presentation: 'modal', headerLargeTitleEnabled: false }}
+      />
+      <Stack.Screen
+        name="add-person"
+        options={{ title: 'Add a person', presentation: 'modal', headerLargeTitleEnabled: false }}
       />
       <Stack.Screen
         name="profile/new"
