@@ -354,51 +354,6 @@ export function Segmented<T extends string>({
   );
 }
 
-// ------------------------------------------------------------------ Chips
-
-/** Single-choice pills that wrap onto new lines; lighter than Segmented for secondary filters. */
-export function Chips<T extends string>({
-  options,
-  value,
-  onChange,
-  label,
-}: {
-  options: { value: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-  /** Read by screen readers for the group. */
-  label: string;
-}) {
-  const theme = useTheme();
-  return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={label} style={styles.chips}>
-      {options.map((o) => {
-        const active = o.value === value;
-        return (
-          <Pressable
-            key={o.value}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: active }}
-            accessibilityLabel={o.label}
-            onPress={() => onChange(o.value)}
-            hitSlop={4}
-            style={({ pressed }) => [
-              styles.chip,
-              active
-                ? { backgroundColor: theme.tint, borderColor: theme.tint }
-                : { backgroundColor: theme.backgroundElement, borderColor: theme.separator },
-              pressed && { opacity: 0.7 },
-            ]}>
-            <Text variant="callout" style={{ color: active ? theme.onTint : theme.text, fontWeight: active ? '600' : '400' }}>
-              {o.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 // ------------------------------------------------------------------ States
 
 export function EmptyState({ icon, title, message, action }: { icon: IconName; title: string; message?: string; action?: ReactNode }) {
@@ -498,15 +453,6 @@ const styles = StyleSheet.create({
   input: { minHeight: 32, paddingVertical: Platform.select({ android: 0, default: 4 }) },
   segmented: { flexDirection: 'row', borderRadius: Radius.small + 1, padding: 2 },
   segment: { flex: 1, minHeight: HitSize - 4, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.small },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  chip: {
-    minHeight: 36,
-    paddingHorizontal: Spacing.three,
-    borderRadius: Radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   empty: { alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.six, paddingHorizontal: Spacing.four },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

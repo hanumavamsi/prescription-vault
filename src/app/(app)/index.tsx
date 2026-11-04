@@ -182,9 +182,9 @@ export default function Home() {
             {groups.length === 0 ? (
               <EmptyState
                 icon="doc.text"
-                title="Nothing matches"
-                message="No documents of this kind are dated in this period."
-                action={<Button title="Clear filters" variant="secondary" onPress={() => setFilter(NO_FILTER)} />}
+                title={filter === 'prescription' ? 'No prescriptions' : 'No reports'}
+                message={`There are no ${filter === 'prescription' ? 'prescriptions' : 'reports'} here yet.`}
+                action={<Button title="Show all" variant="secondary" onPress={() => setFilter(NO_FILTER)} />}
               />
             ) : (
               <>
