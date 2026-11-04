@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GoogleWebButton } from '@/components/google-web-button';
 import { Button, Field, Icon, Text } from '@/components/ui';
 import { HitSize, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
+import { googleIdentityAvailable, type GoogleCredential } from '@/lib/google-web';
 import { PRIVACY_URL, TERMS_URL, openLink } from '@/lib/links';
 import { devEmailLogin, googleWebEnabled, isExpoGo, isWeb, otpLength } from '@/lib/runtime';
 
@@ -16,12 +18,40 @@ type Method = 'apple' | 'google' | 'send-code' | 'verify-code' | 'email';
 const RESEND_SECONDS = 30;
 // Native Google needs the Sign-In SDK (missing in Expo Go); web uses a redirect once it is enabled.
 const showGoogle = isWeb ? googleWebEnabled : !isExpoGo;
+// Web with a client ID: Google's own button and One Tap instead of the OAuth redirect.
+const useGoogleButton = isWeb && googleIdentityAvailable;
+
+// Web remembers the consent tick so returning visitors can be signed in by One Tap.
+const CONSENT_KEY = 'rxvault.consent';
+function savedConsent() {
+  try {
+    return isWeb && window.localStorage.getItem(CONSENT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function saveConsent(value: boolean) {
+  if (!isWeb) return;
+  try {
+    if (value) window.localStorage.setItem(CONSENT_KEY, '1');
+    else window.localStorage.removeItem(CONSENT_KEY);
+  } catch {
+    // Storage blocked (private mode); the tick just isn't remembered.
+  }
+}
 
 export default function SignInScreen() {
   const theme = useTheme();
   const scheme = useColorScheme();
-  const { signInWithApple, signInWithGoogle, requestEmailCode, verifyEmailCode, signInWithEmail } = useAuth();
-  const [agreed, setAgreed] = useState(false);
+  const {
+    signInWithApple,
+    signInWithGoogle,
+    signInWithGoogleCredential,
+    requestEmailCode,
+    verifyEmailCode,
+    signInWithEmail,
+  } = useAuth();
+  const [agreed, setAgreed] = useState(savedConsent);
   const [busy, setBusy] = useState<Method | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -97,6 +127,19 @@ export default function SignInScreen() {
     }
   }
 
+  async function onGoogleCredential(c: GoogleCredential) {
+    if (busy) return;
+    setError(null);
+    setBusy('google');
+    try {
+      await signInWithGoogleCredential(c);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Google sign-in failed. Please try again.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function onCodeChange(text: string) {
     const digits = text.replace(/\D/g, '').slice(0, otpLength);
     setCode(digits);
@@ -132,7 +175,10 @@ export default function SignInScreen() {
             accessibilityState={{ checked: agreed }}
             accessibilityLabel="I agree to the Terms and Privacy Policy and consent to storing my and my family's health records"
             onPress={() => {
-              setAgreed((v) => !v);
+              setAgreed((v) => {
+                saveConsent(!v);
+                return !v;
+              });
               setError(null);
             }}
             style={styles.consent}>
@@ -187,7 +233,17 @@ export default function SignInScreen() {
             </View>
           )}
 
-          {showGoogle && (
+          {showGoogle && useGoogleButton && (
+            <GoogleWebButton
+              onCredential={onGoogleCredential}
+              onError={setError}
+              disabled={!agreed || !!busy}
+              onDisabledPress={() => !agreed && setError('Please agree to the terms below to continue.')}
+              oneTap={agreed && !busy}
+            />
+          )}
+
+          {showGoogle && !useGoogleButton && (
             <Button
               title="Continue with Google"
               variant={appleAvailable ? 'secondary' : 'primary'}

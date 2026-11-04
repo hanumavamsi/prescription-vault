@@ -1,6 +1,7 @@
 /**
  * Authentication: Sign in with Apple (iOS), Google and a one-time email code, backed by Supabase Auth.
- * On the web, Google is a Supabase OAuth redirect and Apple is not offered.
+ * On the web, Google is Google's own button / One Tap (ID token), falling back to a Supabase OAuth
+ * redirect when no web client ID is set. Apple is not offered on the web.
  * This is the only module besides api.ts that talks to supabase directly.
  */
 import type * as GoogleModule from '@react-native-google-signin/google-signin';
@@ -12,6 +13,7 @@ import { Platform } from 'react-native';
 
 import { listProfiles, updateProfile } from '@/lib/api';
 import { clearCache } from '@/lib/cache';
+import { googleWebSignOut, type GoogleCredential } from '@/lib/google-web';
 import { clearPendingInvite } from '@/lib/pending-invite';
 import { googleWebEnabled, isExpoGo, isWeb, otpLength } from '@/lib/runtime';
 import { supabase } from '@/lib/supabase';
@@ -23,6 +25,8 @@ type AuthContextValue = {
   signInWithApple(): Promise<void>;
   /** Native: Google Sign-In SDK. Web: redirects to Google and back (the page reloads). */
   signInWithGoogle(): Promise<void>;
+  /** Web: finishes sign-in with the ID token from Google's button or One Tap. */
+  signInWithGoogleCredential(c: GoogleCredential): Promise<void>;
   /** Emails a sign-in code (otpLength digits), creating the account on first use. */
   requestEmailCode(email: string): Promise<void>;
   /** Signs in with the code from requestEmailCode. */
@@ -210,6 +214,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw friendly(error, 'Google sign-in failed.');
   }, []);
 
+  const signInWithGoogleCredential = useCallback(async ({ idToken, nonce }: GoogleCredential) => {
+    const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken, nonce });
+    if (error) throw friendly(error, 'Google sign-in failed.');
+  }, []);
+
   const requestEmailCode = useCallback(async (email: string) => {
     const { error } = await supabase.auth.signInWithOtp({
       email: normalizeEmail(email),
@@ -239,7 +248,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await clearCache().catch(() => {});
     await clearPendingInvite();
-    if (!isWeb) {
+    if (isWeb) googleWebSignOut();
+    else {
       try {
         const GoogleSignin = configureGoogle();
         if (GoogleSignin.hasPreviousSignIn()) await GoogleSignin.signOut();
@@ -261,6 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initializing,
       signInWithApple,
       signInWithGoogle,
+      signInWithGoogleCredential,
       requestEmailCode,
       verifyEmailCode,
       signInWithEmail,
@@ -271,6 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initializing,
       signInWithApple,
       signInWithGoogle,
+      signInWithGoogleCredential,
       requestEmailCode,
       verifyEmailCode,
       signInWithEmail,

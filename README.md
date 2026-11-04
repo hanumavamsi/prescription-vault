@@ -154,7 +154,7 @@ What is different on the web: sign-in is **Google** (once enabled), with an emai
    - [Resend](https://resend.com): 3,000 emails/month, 100/day free. Host `smtp.resend.com`, port 465, user `resend`, password = API key.
    - [Brevo](https://www.brevo.com): 300 emails/day free. Host `smtp-relay.brevo.com`, port 587.
    Verify a sending domain (or use the provider's test domain), then raise **Authentication → Rate Limits → emails per hour**.
-7. **Google sign-in (optional)**: Google Cloud → Credentials → the **Web application** OAuth client → add the authorized redirect URI `https://<your-project-ref>.supabase.co/auth/v1/callback`. In Supabase → Providers → Google, enter that client's ID and secret. Then set `EXPO_PUBLIC_GOOGLE_WEB_ENABLED=true` (below). Leave it unset to show email-code sign-in only.
+7. **Google sign-in (optional)**: Google Cloud → Credentials → the **Web application** OAuth client → add the authorized redirect URI `https://<your-project-ref>.supabase.co/auth/v1/callback`. In Supabase → Providers → Google, enter that client's ID and secret. Add your site (and `http://localhost` + `http://localhost:8081` for local testing) to that client's **Authorized JavaScript origins**. Then set `EXPO_PUBLIC_GOOGLE_WEB_ENABLED=true` and `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (below). With the client ID set, the web app uses Google's own button and One Tap (Google's consent screen then names your site, not the Supabase URL); without it, it falls back to a Supabase OAuth redirect. Leave Google unset to show email-code sign-in only.
 
 ### 2. Production environment
 
