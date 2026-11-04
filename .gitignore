@@ -47,3 +47,6 @@ example
 # store credentials
 google-play-service-account.json
 .env.production
+
+# Local screenshots / issue notes (may contain personal info)
+issues/
