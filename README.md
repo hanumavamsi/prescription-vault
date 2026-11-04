@@ -133,7 +133,7 @@ Fill in `submit.production` in `eas.json` (Apple ID, App Store Connect app ID, t
 
 The same code base also runs in the browser. People open the link in Safari or Chrome and add it to their home screen, where it opens full screen like an app. Hosting, the `*.expo.app` address and the Supabase backend are all on free tiers. The native app is unaffected.
 
-What is different on the web: sign-in is an **emailed 6-digit code** (and Google, if enabled); there is no Sign in with Apple, no Face ID lock, no auto-crop scanner ("Take photo" uses the phone camera through the browser) and no offline cache. The session is stored in the browser, which is less protected than the iPhone Keychain.
+What is different on the web: sign-in is **Google** (once enabled), with an emailed one-time code behind "Use email instead" as fallback; there is no Sign in with Apple, no Face ID lock, no auto-crop scanner ("Take photo" uses the phone camera through the browser) and no offline cache. The session is stored in the browser, which is less protected than the iPhone Keychain.
 
 ### 1. Supabase cloud project (free)
 

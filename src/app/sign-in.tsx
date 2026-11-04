@@ -32,7 +32,10 @@ export default function SignInScreen() {
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
 
+  // Email code is the fallback: tucked behind a link whenever a one-tap provider is offered.
+  const showEmailForm = emailOpen || sentTo != null || (!showGoogle && !appleAvailable);
   const resendIn = Math.max(0, Math.ceil((resendAt - now) / 1000));
 
   // Tick once a second while the resend cooldown runs.
@@ -194,77 +197,91 @@ export default function SignInScreen() {
             />
           )}
 
-          <View style={[styles.codeBox, { borderColor: theme.separator }]}>
-            {sentTo == null ? (
-              <>
-                <Field
-                  label="Email"
-                  value={codeEmail}
-                  onChangeText={setCodeEmail}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="email"
-                  textContentType="emailAddress"
-                  keyboardType="email-address"
-                  inputMode="email"
-                  returnKeyType="send"
-                  onSubmitEditing={() => {
-                    if (codeEmail.trim()) run('send-code');
-                  }}
-                  placeholder="you@example.com"
-                />
-                <Button
-                  title="Email me a sign-in code"
-                  icon="envelope"
-                  variant={appleAvailable || showGoogle ? 'secondary' : 'primary'}
-                  loading={busy === 'send-code'}
-                  disabled={!agreed || !codeEmail.trim() || (!!busy && busy !== 'send-code')}
-                  onPress={() => run('send-code')}
-                  style={styles.devInset}
-                />
-              </>
-            ) : (
-              <>
-                <Text color="textSecondary" style={styles.devInset} accessibilityLiveRegion="polite">
-                  We sent a {otpLength}-digit code to <Text style={styles.strong}>{sentTo}</Text>. It can take a minute to
-                  arrive; check spam too.
-                </Text>
-                <Field
-                  label={`${otpLength}-digit code`}
-                  value={code}
-                  onChangeText={onCodeChange}
-                  autoComplete="one-time-code"
-                  textContentType="oneTimeCode"
-                  keyboardType="number-pad"
-                  inputMode="numeric"
-                  maxLength={otpLength}
-                  autoFocus
-                  returnKeyType="done"
-                  onSubmitEditing={() => {
-                    if (code.length === otpLength) run('verify-code');
-                  }}
-                  placeholder={'12345678901'.slice(0, otpLength)}
-                />
-                <Button
-                  title="Sign in"
-                  loading={busy === 'verify-code'}
-                  disabled={!agreed || code.length !== otpLength || (!!busy && busy !== 'verify-code')}
-                  onPress={() => run('verify-code')}
-                  style={styles.devInset}
-                />
-                <View style={styles.codeLinks}>
-                  <Button
-                    title={resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
-                    variant="plain"
-                    loading={busy === 'send-code'}
-                    disabled={resendIn > 0 || (!!busy && busy !== 'send-code')}
-                    onPress={() => run('send-code')}
+          {!showEmailForm && (
+            <Button
+              title="Use email instead"
+              variant="plain"
+              disabled={!!busy}
+              onPress={() => {
+                setEmailOpen(true);
+                setError(null);
+              }}
+            />
+          )}
+
+          {showEmailForm && (
+            <View style={[styles.codeBox, { borderColor: theme.separator }]}>
+              {sentTo == null ? (
+                <>
+                  <Field
+                    label="Email"
+                    value={codeEmail}
+                    onChangeText={setCodeEmail}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                    keyboardType="email-address"
+                    inputMode="email"
+                    returnKeyType="send"
+                    onSubmitEditing={() => {
+                      if (codeEmail.trim()) run('send-code');
+                    }}
+                    placeholder="you@example.com"
                   />
-                  <Button title="Use a different email" variant="plain" disabled={!!busy} onPress={changeEmail} />
-                </View>
-              </>
-            )}
-          </View>
+                  <Button
+                    title="Email me a sign-in code"
+                    icon="envelope"
+                    variant={appleAvailable || showGoogle ? 'secondary' : 'primary'}
+                    loading={busy === 'send-code'}
+                    disabled={!agreed || !codeEmail.trim() || (!!busy && busy !== 'send-code')}
+                    onPress={() => run('send-code')}
+                    style={styles.devInset}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text color="textSecondary" style={styles.devInset} accessibilityLiveRegion="polite">
+                    We sent a {otpLength}-digit code to <Text style={styles.strong}>{sentTo}</Text>. It can take a minute to
+                    arrive; check spam too.
+                  </Text>
+                  <Field
+                    label={`${otpLength}-digit code`}
+                    value={code}
+                    onChangeText={onCodeChange}
+                    autoComplete="one-time-code"
+                    textContentType="oneTimeCode"
+                    keyboardType="number-pad"
+                    inputMode="numeric"
+                    maxLength={otpLength}
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={() => {
+                      if (code.length === otpLength) run('verify-code');
+                    }}
+                    placeholder={'12345678901'.slice(0, otpLength)}
+                  />
+                  <Button
+                    title="Sign in"
+                    loading={busy === 'verify-code'}
+                    disabled={!agreed || code.length !== otpLength || (!!busy && busy !== 'verify-code')}
+                    onPress={() => run('verify-code')}
+                    style={styles.devInset}
+                  />
+                  <View style={styles.codeLinks}>
+                    <Button
+                      title={resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
+                      variant="plain"
+                      loading={busy === 'send-code'}
+                      disabled={resendIn > 0 || (!!busy && busy !== 'send-code')}
+                      onPress={() => run('send-code')}
+                    />
+                    <Button title="Use a different email" variant="plain" disabled={!!busy} onPress={changeEmail} />
+                  </View>
+                </>
+              )}
+            </View>
+          )}
 
           {devEmailLogin && (
             <View style={[styles.devBox, { borderColor: theme.separator }]}>
