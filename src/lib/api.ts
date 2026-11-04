@@ -8,6 +8,7 @@ import { readBytes } from '@/lib/bytes';
 import { inviteBaseUrl } from '@/lib/runtime';
 import { supabase } from '@/lib/supabase';
 import type {
+  DocDetails,
   DocType,
   Document,
   DocumentPage,
@@ -103,7 +104,7 @@ export async function getDocument(id: string): Promise<{ doc: Document; pages: D
   return { doc, pages };
 }
 
-export async function updateDocument(id: string, patch: { type?: DocType; doc_date?: string; title?: string | null }) {
+export async function updateDocument(id: string, patch: Partial<DocDetails>) {
   must(await supabase.from('documents').update(patch).eq('id', id));
 }
 
@@ -121,7 +122,16 @@ export async function deleteDocument(id: string) {
  * onProgress reports pages uploaded so far.
  */
 export async function createDocument(
-  input: { profileId: string; type: DocType; docDate: string; title?: string; pages: LocalPage[] },
+  input: {
+    profileId: string;
+    type: DocType;
+    docDate: string;
+    title?: string;
+    doctor?: string;
+    specialty?: string;
+    hospital?: string;
+    pages: LocalPage[];
+  },
   onProgress?: (done: number, total: number) => void,
 ): Promise<Document> {
   if (!input.pages.length) throw new Error('Add at least one page');
@@ -134,6 +144,9 @@ export async function createDocument(
         type: input.type,
         doc_date: input.docDate,
         title: input.title?.trim() || null,
+        doctor: input.doctor?.trim() || null,
+        specialty: input.specialty?.trim() || null,
+        hospital: input.hospital?.trim() || null,
         created_by: uid,
       })
       .select()

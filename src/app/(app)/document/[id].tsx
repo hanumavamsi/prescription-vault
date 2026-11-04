@@ -13,6 +13,7 @@ import {
   type ListViewToken,
 } from 'react-native';
 
+import { DocDetailsFields, type DetailsValue } from '@/components/doc-details-fields';
 import { PageView } from '@/components/page-view';
 import {
   Button,
@@ -36,7 +37,7 @@ import { deleteDocument, getDocument, getProfile, updateDocument } from '@/lib/a
 import { getCachedPageUri } from '@/lib/cache';
 import { confirm, showMessage } from '@/lib/confirm';
 import { preparePageShare, shareFileName, sharePage } from '@/lib/share';
-import type { DocType, Document, DocumentPage } from '@/lib/types';
+import type { DocDetails, DocType, Document, DocumentPage } from '@/lib/types';
 
 export default function DocumentViewer() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -256,13 +257,14 @@ function EditSheet({
   visible: boolean;
   doc: Document;
   onClose: () => void;
-  onSaved: (patch: { type: DocType; doc_date: string; title: string | null }) => void;
+  onSaved: (patch: DocDetails) => void;
   onDeleted: () => void;
 }) {
   const theme = useTheme();
   const [type, setType] = useState<DocType>(doc.type);
   const [date, setDate] = useState(doc.doc_date);
   const [title, setTitle] = useState(doc.title ?? '');
+  const [details, setDetails] = useState<DetailsValue>(() => detailsOf(doc));
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -271,6 +273,7 @@ function EditSheet({
     setType(doc.type);
     setDate(doc.doc_date);
     setTitle(doc.title ?? '');
+    setDetails(detailsOf(doc));
     setError(null);
   };
 
@@ -295,7 +298,14 @@ function EditSheet({
     }
     setSaving(true);
     setError(null);
-    const patch = { type, doc_date: date, title: title.trim() || null };
+    const patch: DocDetails = {
+      type,
+      doc_date: date,
+      title: title.trim() || null,
+      doctor: details.doctor.trim() || null,
+      specialty: details.specialty.trim() || null,
+      hospital: details.hospital.trim() || null,
+    };
     try {
       await updateDocument(doc.id, patch);
       onSaved(patch);
@@ -394,7 +404,7 @@ function EditSheet({
             </View>
           </Section>
 
-          <Section title="Title" footer="Optional, e.g. Blood test or Dr. Rao">
+          <Section title="Title" footer="Optional, e.g. Blood test or Fever follow-up">
             <Field
               label="Title"
               value={title}
@@ -405,6 +415,8 @@ function EditSheet({
               onSubmitEditing={save}
             />
           </Section>
+
+          <DocDetailsFields value={details} onChange={setDetails} editable={!busy} />
 
           {(error || (dateError && date.length >= 10)) && (
             <Text color="danger" accessibilityRole="alert" style={{ paddingHorizontal: Spacing.three }}>
@@ -417,6 +429,10 @@ function EditSheet({
       </KeyboardAvoidingView>
     </Modal>
   );
+}
+
+function detailsOf(doc: Document): DetailsValue {
+  return { doctor: doc.doctor ?? '', specialty: doc.specialty ?? '', hospital: doc.hospital ?? '' };
 }
 
 function formatDateSafe(iso: string) {
