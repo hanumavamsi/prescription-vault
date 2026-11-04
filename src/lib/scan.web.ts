@@ -1,7 +1,7 @@
 /**
  * Web version of scan.ts: camera photo, photo library and PDF import through a hidden
  * <input type="file">. iPhone Safari offers the camera for `capture`, and converts HEIC to JPEG
- * for `accept="image/*"`. Images are normalized to a JPEG (max 2400px) on a canvas and returned
+ * for `accept="image/*"`. Images are normalized to a JPEG (max 1800px) on a canvas and returned
  * as blob: URLs. All functions resolve to an empty array when the user cancels.
  *
  * Call these straight from a tap handler (no await before them): browsers only open the file
@@ -10,8 +10,9 @@
 import { MAX_PAGE_BYTES } from '@/lib/api';
 import type { LocalPage } from '@/lib/types';
 
-const MAX_EDGE = 2400;
-const JPEG_QUALITY = 0.8;
+// Tuned on a real handwritten Rx: ~150 KB per page, handwriting still readable when zoomed.
+const MAX_EDGE = 1800;
+const JPEG_QUALITY = 0.6;
 const MAX_PHOTOS = 30;
 /** How long to wait after the window regains focus before treating the picker as cancelled. */
 const CANCEL_FALLBACK_MS = 1500;

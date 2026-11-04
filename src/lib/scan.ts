@@ -14,8 +14,9 @@ import { MAX_PAGE_BYTES } from '@/lib/api';
 import { isExpoGo } from '@/lib/runtime';
 import type { LocalPage } from '@/lib/types';
 
-const MAX_EDGE = 2400;
-const JPEG_QUALITY = 0.8;
+// Tuned on a real handwritten Rx: ~150 KB per page, handwriting still readable when zoomed.
+const MAX_EDGE = 1800;
+const JPEG_QUALITY = 0.6;
 const MAX_PHOTOS = 30;
 
 /** Error with a message that is safe to show to the user as-is. */
