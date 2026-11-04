@@ -96,7 +96,7 @@ function InviteBody({ token }: { token: string }) {
 
       <Text variant="body" style={styles.center}>
         {isView
-          ? `${from} wants to view your health records. They will be able to see, but not change, your prescriptions and reports. You can remove access anytime in Family.`
+          ? `${from} wants to view your health records. They will be able to see, but not change, your prescriptions and reports. You can remove access anytime under Family.`
           : `${from} created a profile for ${profile} and wants to hand it to you. Its records will move to your account and ${from} will keep view access.`}
       </Text>
 

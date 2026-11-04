@@ -95,13 +95,6 @@ export async function listDocuments(profileId: string, type?: DocType): Promise<
   return must(await q);
 }
 
-/** Most recent documents across every profile I can see. */
-export async function listRecentDocuments(limit = 10): Promise<Document[]> {
-  return must(
-    await supabase.from('documents').select('*').order('created_at', { ascending: false }).limit(limit),
-  );
-}
-
 export async function getDocument(id: string): Promise<{ doc: Document; pages: DocumentPage[] }> {
   const [doc, pages] = await Promise.all([
     supabase.from('documents').select('*').eq('id', id).single().then(must<Document>),

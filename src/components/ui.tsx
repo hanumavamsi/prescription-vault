@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HitSize, MaxContentWidth, Radius, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import type { ProfileRole } from '@/lib/types';
 
 // ------------------------------------------------------------------ Text
 
@@ -248,7 +249,28 @@ export function Row({ title, subtitle, value, left, icon, onPress, destructive, 
 
 // ------------------------------------------------------------------ Avatar
 
-export function Avatar({ name, size = 48, dashed }: { name: string; size?: number; dashed?: boolean }) {
+/** Who a profile is to me, as shown on avatars and in the legend. */
+export const roleColorKey = { self: 'roleSelf', viewer: 'roleShared', managed: 'roleManaged' } as const satisfies Record<
+  ProfileRole,
+  keyof ReturnType<typeof useTheme>
+>;
+export const roleLabel = { self: 'Me', viewer: 'Shared with me', managed: 'Managed by me' } as const satisfies Record<
+  ProfileRole,
+  string
+>;
+
+export function Avatar({
+  name,
+  size = 48,
+  dashed,
+  role,
+}: {
+  name: string;
+  size?: number;
+  dashed?: boolean;
+  /** Draws a coloured ring for the profile's role. */
+  role?: ProfileRole;
+}) {
   const theme = useTheme();
   const initials = name
     .trim()
@@ -256,6 +278,7 @@ export function Avatar({ name, size = 48, dashed }: { name: string; size?: numbe
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('');
+  const ring = role ? theme[roleColorKey[role]] : undefined;
   return (
     <View
       accessibilityElementsHidden
@@ -267,9 +290,9 @@ export function Avatar({ name, size = 48, dashed }: { name: string; size?: numbe
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: dashed ? 'transparent' : theme.backgroundSelected,
-        borderWidth: dashed ? 1.5 : 0,
+        borderWidth: dashed ? 1.5 : ring ? Math.max(2, Math.round(size / 20)) : 0,
         borderStyle: dashed ? 'dashed' : 'solid',
-        borderColor: theme.textTertiary,
+        borderColor: ring ?? theme.textTertiary,
       }}>
       <RNText style={{ fontSize: size * 0.38, fontWeight: '600', color: theme.text }} allowFontScaling={false}>
         {initials || '?'}

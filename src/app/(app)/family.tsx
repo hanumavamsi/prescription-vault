@@ -145,14 +145,14 @@ export default function FamilyScreen() {
       )}
 
       <Section
-        title="Ask to see records"
-        footer="They get a link. Once they approve, you can see their prescriptions and reports. You can only view — you cannot change or delete anything.">
+        title="Request to see their records"
+        footer="They get a link. Once they approve, you can see their prescriptions and reports, including new ones they add. You can only view — you cannot change or delete anything.">
         <View style={styles.card}>
           <Text color="textSecondary">
             Help a parent or relative who already uses the app. Send them a request, and when they approve you’ll see
             their records here.
           </Text>
-          <Button title="Invite family member" icon="paperplane" onPress={invite} loading={inviting} />
+          <Button title="Request access" icon="paperplane" onPress={invite} loading={inviting} />
           {inviteError && (
             <Text color="danger" accessibilityRole="alert">
               {inviteError}
@@ -188,7 +188,7 @@ export default function FamilyScreen() {
             key={p.id}
             title={p.display_name}
             subtitle={p.relation ?? undefined}
-            left={<Avatar name={p.display_name} size={40} />}
+            left={<Avatar name={p.display_name} size={40} role="managed" />}
             onPress={() => router.push(('/profile/' + p.id) as never)}
           />
         ))}
@@ -209,13 +209,13 @@ export default function FamilyScreen() {
               key={p.id}
               title={p.display_name}
               subtitle="View only"
-              left={<Avatar name={p.display_name} size={40} />}
-              onPress={() => router.push(('/person/' + p.id) as never)}
+              left={<Avatar name={p.display_name} size={40} role="viewer" />}
+              onPress={() => router.dismissTo({ pathname: '/', params: { person: p.id } } as never)}
               last={i === data.shared.length - 1}
             />
           ))
         ) : (
-          <Row title="No one yet" subtitle="Use “Invite family member” above to ask." icon="person.2" last />
+          <Row title="No one yet" subtitle="Use “Request access” above to ask." icon="person.2" last />
         )}
       </Section>
 

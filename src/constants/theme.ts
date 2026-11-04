@@ -1,6 +1,7 @@
 /**
  * Minimal monochrome palette with an iOS-native feel.
  * One accent: the text color itself (black in light, white in dark). Red only for destructive actions.
+ * The role colors only mark who a profile belongs to (me / shared with me / managed by me).
  */
 
 import '@/global.css';
@@ -19,6 +20,10 @@ export const Colors = {
     tint: '#000000',
     onTint: '#FFFFFF',
     danger: '#D70015',
+    // Who a profile is to me: rings on avatars plus a legend, so they're never colour-only.
+    roleSelf: '#0071E3',
+    roleShared: '#248A3D',
+    roleManaged: '#C93400',
   },
   dark: {
     text: '#FFFFFF',
@@ -31,6 +36,9 @@ export const Colors = {
     tint: '#FFFFFF',
     onTint: '#000000',
     danger: '#FF453A',
+    roleSelf: '#0A84FF',
+    roleShared: '#30D158',
+    roleManaged: '#FF9F0A',
   },
 } as const;
 
