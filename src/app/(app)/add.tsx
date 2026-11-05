@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { DocDetailsFields, type DetailsValue } from '@/components/doc-details-fields';
+import { WebCamera, webCameraSupported } from '@/components/web-camera';
 import {
   Avatar,
   Button,
@@ -72,6 +73,10 @@ export default function AddDocumentScreen() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  /** Web: the live camera is open for shooting pages one after another. */
+  const [cameraOpen, setCameraOpen] = useState(false);
+  /** Web: the live camera failed once (blocked, missing); use the browser's one-shot camera instead. */
+  const [cameraFallback, setCameraFallback] = useState(false);
 
   const writable = useMemo(
     () => (profiles.data ?? []).filter((p) => p.role === 'self' || p.role === 'managed'),
@@ -125,8 +130,27 @@ export default function AddDocumentScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done]);
 
+  /** Web with a live camera: open it so several pages can be shot in a row. */
+  const useLiveCamera = Platform.OS === 'web' && webCameraSupported && !cameraFallback;
+
+  function addPages(picked: LocalPage[]) {
+    setPages((prev) => {
+      const base = prev.length === 1 && prev[0].mime === 'application/pdf' ? [] : prev;
+      const next = [...base, ...picked];
+      if (next.length > MAX_PAGES) {
+        setError(`A document can have up to ${MAX_PAGES} pages. Only the first ${MAX_PAGES} were kept.`);
+      }
+      return next.slice(0, MAX_PAGES);
+    });
+  }
+
   async function pick(source: Source) {
     if (picking || saving) return;
+    if (source === 'scan' && useLiveCamera) {
+      setError(null);
+      setCameraOpen(true);
+      return;
+    }
     setPicking(source);
     setError(null);
     try {
@@ -137,14 +161,7 @@ export default function AddDocumentScreen() {
         setPages(picked.slice(0, 1));
         return;
       }
-      setPages((prev) => {
-        const base = prev.length === 1 && prev[0].mime === 'application/pdf' ? [] : prev;
-        const next = [...base, ...picked];
-        if (next.length > MAX_PAGES) {
-          setError(`A document can have up to ${MAX_PAGES} pages. Only the first ${MAX_PAGES} were kept.`);
-        }
-        return next.slice(0, MAX_PAGES);
-      });
+      addPages(picked);
     } catch (e) {
       if (e instanceof ScanError && e.needsSettings) {
         void confirm({
@@ -165,9 +182,9 @@ export default function AddDocumentScreen() {
 
   function addMore() {
     if (Platform.OS === 'web') {
-      // No action sheet on web. The browser's photo picker also offers the camera on phones,
-      // and it must open straight from this tap.
-      void pick('photos');
+      // No action sheet on web. With a live camera, keep scanning; otherwise the browser's photo
+      // picker, which also offers the camera on phones and must open straight from this tap.
+      void pick(useLiveCamera ? 'scan' : 'photos');
       return;
     }
     Alert.alert('Add more pages', undefined, [
@@ -233,6 +250,27 @@ export default function AddDocumentScreen() {
     />
   );
 
+  const camera = cameraOpen && (
+    <WebCamera
+      existingCount={pages.length === 1 && isPdf ? 0 : pages.length}
+      maxPages={MAX_PAGES}
+      onDone={(shots) => {
+        setCameraOpen(false);
+        if (shots.length) addPages(shots);
+      }}
+      onCancel={() => setCameraOpen(false)}
+      onUnavailable={(message, denied) => {
+        setCameraOpen(false);
+        setCameraFallback(true);
+        setError(
+          denied
+            ? `${message} For now, tap Scan with camera again to take one photo at a time.`
+            : `${message} Tap Scan with camera again to take one photo at a time.`,
+        );
+      }}
+    />
+  );
+
   if (profiles.loading && !profiles.data) {
     return (
       <>
@@ -268,6 +306,7 @@ export default function AddDocumentScreen() {
     return (
       <Screen>
         {header}
+        {camera}
         <Text color="textSecondary" style={styles.intro}>
           How would you like to add the prescription or report?
         </Text>
@@ -310,6 +349,7 @@ export default function AddDocumentScreen() {
   return (
     <Screen automaticallyAdjustKeyboardInsets>
       {header}
+      {camera}
 
       <View style={{ gap: Spacing.two }}>
         <Text variant="footnote" color="textSecondary" style={styles.label}>
