@@ -50,3 +50,6 @@ google-play-service-account.json
 
 # Local screenshots / issue notes (may contain personal info)
 issues/
+
+# Local secrets (never commit)
+*token*.txt
