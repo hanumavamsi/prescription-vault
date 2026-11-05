@@ -24,6 +24,21 @@ export function shareFileName(title: string, page: Pick<DocumentPage, 'mime' | '
   return total > 1 ? `${safe} - page ${page.page_no}.${ext}` : `${safe}.${ext}`;
 }
 
+/** Web shares or downloads one page at a time; combining pages into a PDF is native only. */
+export const canSharePdf = false;
+
+export function pdfFileName(title: string) {
+  return `${title}.pdf`;
+}
+
+export async function shareImagesAsPdf(_input: {
+  images: { uri: string; mime: 'image/jpeg' | 'image/png' }[];
+  fileName: string;
+  title: string;
+}): Promise<void> {
+  throw new Error('Sharing as PDF is only available in the mobile app.');
+}
+
 const MAX_PREPARED = 4;
 /** Fetched pages keyed by file name + url, oldest first. */
 const prepared = new Map<string, Promise<File>>();

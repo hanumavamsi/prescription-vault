@@ -11,6 +11,7 @@ import { Linking, Platform } from 'react-native';
 import type * as ScannerModule from 'react-native-document-scanner-plugin';
 
 import { MAX_PAGE_BYTES } from '@/lib/api';
+import { confirm } from '@/lib/confirm';
 import { isExpoGo } from '@/lib/runtime';
 import type { LocalPage } from '@/lib/types';
 
@@ -104,15 +105,30 @@ export async function scanDocument(): Promise<LocalPage[]> {
   return normalizeAll(res.scannedImages.map((p) => ({ uri: toFileUri(p) })));
 }
 
-/** Expo Go fallback for scanning: a plain camera photo, no edge detection. */
+/**
+ * Expo Go fallback for scanning: plain camera photos, no edge detection. After each photo the user
+ * can take another, so a multi-page report goes in one go like with the native scanner.
+ */
 async function takePhoto(): Promise<LocalPage[]> {
   const perm = await ImagePicker.requestCameraPermissionsAsync();
   if (!perm.granted) {
     throw new ScanError('Camera access is turned off. Allow camera access in Settings to scan documents.', true);
   }
-  const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
-  if (res.canceled || !res.assets.length) return [];
-  return normalizeAll(res.assets.map((a) => ({ uri: a.uri })));
+  const shots: { uri: string }[] = [];
+  while (shots.length < MAX_PHOTOS) {
+    const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
+    if (res.canceled || !res.assets.length) break;
+    shots.push(...res.assets.map((a) => ({ uri: a.uri })));
+    if (shots.length >= MAX_PHOTOS) break;
+    const more = await confirm({
+      title: shots.length === 1 ? '1 page taken' : `${shots.length} pages taken`,
+      message: 'Is there another page in this document?',
+      confirmText: 'Take another',
+      cancelText: 'Done',
+    });
+    if (!more) break;
+  }
+  return normalizeAll(shots);
 }
 
 /**

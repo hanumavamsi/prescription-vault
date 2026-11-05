@@ -1,6 +1,7 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import {
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -36,7 +37,14 @@ import { useTheme } from '@/hooks/use-theme';
 import { deleteDocument, getDocument, getProfile, updateDocument } from '@/lib/api';
 import { getCachedPageUri } from '@/lib/cache';
 import { confirm, showMessage } from '@/lib/confirm';
-import { preparePageShare, shareFileName, sharePage } from '@/lib/share';
+import {
+  canSharePdf,
+  pdfFileName,
+  preparePageShare,
+  shareFileName,
+  shareImagesAsPdf,
+  sharePage,
+} from '@/lib/share';
 import type { DocDetails, DocType, Document, DocumentPage } from '@/lib/types';
 
 export default function DocumentViewer() {
@@ -92,17 +100,45 @@ export default function DocumentViewer() {
   const page = pages[Math.min(current, pages.length - 1)];
   const pageLabel = (i: number) => `Page ${i + 1} of ${pages.length}`;
 
-  const share = async () => {
-    if (!page) return;
+  const run = async (task: () => Promise<void>) => {
     setSharing(true);
     try {
-      const src = uris.current.get(page.id) ?? (await getCachedPageUri(page));
-      await sharePage({ uri: src, mime: page.mime, title, fileName: shareFileName(title, page, pages.length) });
+      await task();
     } catch (e) {
       showMessage('Could not share', e instanceof Error ? e.message : String(e));
     } finally {
       setSharing(false);
     }
+  };
+
+  const shareCurrent = () =>
+    run(async () => {
+      if (!page) return;
+      const src = uris.current.get(page.id) ?? (await getCachedPageUri(page));
+      await sharePage({ uri: src, mime: page.mime, title, fileName: shareFileName(title, page, pages.length) });
+    });
+
+  const shareAllAsPdf = () =>
+    run(async () => {
+      const images = [];
+      // Sequential: downloads (when not cached yet) and base64 copies stay one page at a time in memory.
+      for (const p of pages) {
+        if (p.mime === 'application/pdf') continue;
+        images.push({ uri: uris.current.get(p.id) ?? (await getCachedPageUri(p)), mime: p.mime });
+      }
+      await shareImagesAsPdf({ images, fileName: pdfFileName(title), title });
+    });
+
+  // Several photo pages: offer them together as one PDF, which is how labs and doctors expect reports.
+  const pdfable = canSharePdf && pages.length > 1 && pages.every((p) => p.mime !== 'application/pdf');
+  const share = () => {
+    if (!page) return;
+    if (!pdfable) return void shareCurrent();
+    Alert.alert('Share', undefined, [
+      { text: `All ${pages.length} pages as PDF`, onPress: () => void shareAllAsPdf() },
+      { text: `Only page ${Math.min(current, pages.length - 1) + 1}`, onPress: () => void shareCurrent() },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   // Desktop browsers can't swipe between pages, so the web shows Previous / Next buttons.
@@ -130,7 +166,7 @@ export default function DocumentViewer() {
           ),
           headerRight: () => (
             <View style={styles.headerButtons}>
-              <HeaderButton icon="square.and.arrow.up" label="Share this page" onPress={share} disabled={sharing || !page} />
+              <HeaderButton icon="square.and.arrow.up" label={pdfable ? 'Share' : 'Share this page'} onPress={share} disabled={sharing || !page} />
               {canEdit && <HeaderButton icon="pencil" label="Edit details" onPress={() => setEditing(true)} />}
             </View>
           ),
