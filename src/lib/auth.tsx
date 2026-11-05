@@ -97,6 +97,10 @@ function friendlyCode(e: unknown, fallback: string, verifying = false): Error {
   if (/signups? not allowed|signup is disabled/i.test(msg)) {
     return new Error('New accounts are not open right now.');
   }
+  // Supabase mailer failure ("Error sending confirmation email" / "Error sending magic link email").
+  if (!verifying && /error sending .*email/i.test(msg)) {
+    return new Error('We could not email a code right now. Please try Continue with Google, or try again later.');
+  }
   return friendly(e, fallback);
 }
 

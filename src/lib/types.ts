@@ -20,10 +20,17 @@ export type Document = {
   type: DocType;
   doc_date: string; // YYYY-MM-DD
   title: string | null;
+  doctor: string | null;
+  specialty: string | null;
+  /** Hospital, clinic or lab. */
+  hospital: string | null;
   page_count: number;
   created_by: string | null;
   created_at: string;
 };
+
+/** The editable, searchable fields of a document. */
+export type DocDetails = Pick<Document, 'type' | 'doc_date' | 'title' | 'doctor' | 'specialty' | 'hospital'>;
 
 export type DocumentPage = {
   id: string;

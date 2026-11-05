@@ -5,7 +5,13 @@ import type { Document } from '@/lib/types';
 export function DocRow({ doc, onPress, last }: { doc: Document; onPress: () => void; last?: boolean }) {
   const pages = doc.page_count === 1 ? '1 page' : `${doc.page_count} pages`;
   const title = doc.title?.trim();
-  const subtitle = [title ? docTypeLabel[doc.type] : null, formatDate(doc.doc_date), doc.page_count > 0 ? pages : null]
+  const subtitle = [
+    title ? docTypeLabel[doc.type] : null,
+    doc.specialty?.trim(),
+    doc.doctor?.trim(),
+    formatDate(doc.doc_date),
+    doc.page_count > 0 ? pages : null,
+  ]
     .filter(Boolean)
     .join(' · ');
   return (

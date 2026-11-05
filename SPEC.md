@@ -23,8 +23,8 @@ Simple, good-looking app to store prescriptions and medical reports for yourself
 
 ## Documents
 - Sources: camera scan (native document scanner, auto-crop), photo library, PDF import (share sheet + file picker).
-- Fields: `type` (Prescription | Report), `date` (default today), `title` (optional), pages (1..n).
-- View: timeline for each person, newest first, filter by type.
+- Fields: `type` (Prescription | Report), `date` (default today), `title` (optional), `doctor`, `specialty`, `hospital` (optional), pages (1..n).
+- View: timeline for each person, newest first, filter by type, search over title / doctor / specialty (incl. everyday words like "skin" → Dermatology) / hospital / type / date.
 - Offline: recently viewed files cached on device, encrypted (expo-secure-store key + encrypted file cache).
 
 ## Data model (sketch)
@@ -50,4 +50,4 @@ Storage bucket policy mirrors the RLS rules.
 - App Store: health data privacy labels; no HealthKit in v1.
 
 ## Out of scope for v1
-OCR/search, tags, doctor/hospital fields, sharing to doctors, reminders, payments, E2E.
+OCR / AI auto-fill of details, tags, sharing to doctors, reminders, payments, E2E.

@@ -43,8 +43,21 @@ declare global {
 
 export type GoogleCredential = { idToken: string; nonce: string };
 
-/** True when the web client ID is configured, so the GIS button can replace the OAuth redirect. */
-export const googleIdentityAvailable = !!CLIENT_ID;
+/**
+ * iPhone/iPad browsers (all WebKit). The GIS button opens Google in a popup, which iOS shows as a
+ * new tab; after choosing an account that tab often can't hand the token back and stays blank white.
+ * iPadOS reports a Mac user agent, hence the touch check.
+ */
+function isIOS() {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+}
+
+/**
+ * True when the GIS button can replace the OAuth redirect: the web client ID is configured and the
+ * browser isn't on iOS, where the full-page redirect is the reliable path.
+ */
+export const googleIdentityAvailable = !!CLIENT_ID && !isIOS();
 
 let scriptPromise: Promise<GoogleId> | null = null;
 

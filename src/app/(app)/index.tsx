@@ -23,6 +23,7 @@ import {
   roleColorKey,
   roleLabel,
   Screen,
+  SearchField,
   Section,
   Text,
 } from '@/components/ui';
@@ -30,6 +31,7 @@ import { HitSize, Radius, Spacing } from '@/constants/theme';
 import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
 import { listDocuments, listProfiles } from '@/lib/api';
+import { searchDocs } from '@/lib/search';
 import type { Document, ProfileRole, ProfileWithRole } from '@/lib/types';
 
 const AVATAR = 64;
@@ -60,13 +62,18 @@ export default function Home() {
   const theme = useTheme();
   const { person } = useLocalSearchParams<{ person?: string }>();
   const [filter, setFilter] = useState<DocFilterValue>(NO_FILTER);
+  const [query, setQuery] = useState('');
 
   const people = useQuery(listProfiles);
   const profiles = people.data;
   const selected = profiles?.find((p) => p.id === person) ?? profiles?.find((p) => p.role === 'self');
   const docsQuery = useQuery(async () => (selected ? listDocuments(selected.id) : []), [selected?.id]);
   const docs = docsQuery.data;
-  const groups = useMemo(() => (docs ? groupByMonth(applyDocFilter(docs, filter)) : []), [docs, filter]);
+  const groups = useMemo(
+    () => (docs ? groupByMonth(applyDocFilter(searchDocs(docs, query), filter)) : []),
+    [docs, filter, query],
+  );
+  const searching = query.trim().length > 0;
 
   const header = (
     <Stack.Screen
@@ -124,6 +131,7 @@ export default function Home() {
 
   const select = (p: ProfileWithRole) => {
     setFilter(NO_FILTER);
+    setQuery('');
     router.setParams({ person: p.role === 'self' ? undefined : p.id });
   };
   const addDocument = () => router.push({ pathname: '/add', params: { profileId: selected.id } } as Href);
@@ -178,17 +186,41 @@ export default function Home() {
           />
         ) : (
           <>
+            <SearchField
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search doctor, specialty, hospital…"
+              accessibilityLabel="Search documents"
+            />
             <DocFilters value={filter} onChange={setFilter} />
             {groups.length === 0 ? (
-              <EmptyState
-                icon="doc.text"
-                title={filter === 'prescription' ? 'No prescriptions' : 'No reports'}
-                message={`There are no ${filter === 'prescription' ? 'prescriptions' : 'reports'} here yet.`}
-                action={<Button title="Show all" variant="secondary" onPress={() => setFilter(NO_FILTER)} />}
-              />
+              searching ? (
+                <EmptyState
+                  icon="magnifyingglass"
+                  title="No matches"
+                  message={`Nothing matches “${query.trim()}”${isFiltered(filter) ? ` in ${filter === 'prescription' ? 'prescriptions' : 'reports'}` : ''}. Try a doctor's name, a specialty like skin or heart, or a hospital.`}
+                  action={
+                    <Button
+                      title="Clear search"
+                      variant="secondary"
+                      onPress={() => {
+                        setQuery('');
+                        setFilter(NO_FILTER);
+                      }}
+                    />
+                  }
+                />
+              ) : (
+                <EmptyState
+                  icon="doc.text"
+                  title={filter === 'prescription' ? 'No prescriptions' : 'No reports'}
+                  message={`There are no ${filter === 'prescription' ? 'prescriptions' : 'reports'} here yet.`}
+                  action={<Button title="Show all" variant="secondary" onPress={() => setFilter(NO_FILTER)} />}
+                />
+              )
             ) : (
               <>
-                {isFiltered(filter) && (
+                {(isFiltered(filter) || searching) && (
                   <Text variant="footnote" color="textSecondary" accessibilityLiveRegion="polite">
                     {groups.reduce((n, g) => n + g.data.length, 0)} found
                   </Text>
