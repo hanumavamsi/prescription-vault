@@ -56,7 +56,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "web:export": "expo export --platform web",
-    "web:deploy": "npx eas-cli@latest deploy --prod"
+    "web:deploy": "expo export --platform web && npx eas-cli@latest deploy --prod"
   },
   "private": true
 }
