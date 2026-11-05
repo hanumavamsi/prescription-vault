@@ -90,6 +90,7 @@ const ANDROID_ICONS = {
   internaldrive: 'storage',
   link: 'link',
   lock: 'lock',
+  magnifyingglass: 'search',
   'lock.doc': 'lock',
   'lock.fill': 'lock',
   paperplane: 'send',
@@ -109,6 +110,7 @@ const ANDROID_ICONS = {
   trash: 'delete',
   tray: 'inbox',
   xmark: 'close',
+  'xmark.circle.fill': 'cancel',
 } as const satisfies Partial<Record<SFSymbol, AndroidSymbol>>;
 
 export type IconName = keyof typeof ANDROID_ICONS;
@@ -321,6 +323,86 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
   );
 }
 
+// ------------------------------------------------------------------ SearchField
+
+/** Rounded search box with a clear button. */
+export function SearchField({
+  value,
+  onChangeText,
+  placeholder,
+  accessibilityLabel,
+}: {
+  value: string;
+  onChangeText: (t: string) => void;
+  placeholder: string;
+  accessibilityLabel: string;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.search, { backgroundColor: theme.backgroundSelected }]}>
+      <Icon name="magnifyingglass" size={18} color={theme.textSecondary} />
+      <TextInput
+        accessibilityLabel={accessibilityLabel}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={theme.textTertiary}
+        autoCorrect={false}
+        autoCapitalize="none"
+        returnKeyType="search"
+        clearButtonMode="never"
+        maxFontSizeMultiplier={1.8}
+        style={[Type.body, styles.searchInput, { color: theme.text }]}
+      />
+      {value.length > 0 && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Clear search"
+          onPress={() => onChangeText('')}
+          hitSlop={10}
+          style={({ pressed }) => [styles.searchClear, pressed && { opacity: 0.5 }]}>
+          <Icon name="xmark.circle.fill" size={18} color={theme.textTertiary} />
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+// ------------------------------------------------------------------ Chip
+
+export function Chip({
+  label,
+  selected,
+  onPress,
+  disabled,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected, disabled: !!disabled }}
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.chip,
+        {
+          backgroundColor: selected ? theme.tint : theme.backgroundSelected,
+          opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+        },
+      ]}>
+      <Text variant="callout" color={selected ? 'onTint' : 'text'} style={{ fontWeight: '600' }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 // ------------------------------------------------------------------ Segmented
 
 export function Segmented<T extends string>({
@@ -451,6 +533,23 @@ const styles = StyleSheet.create({
   },
   field: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two + 2, gap: Spacing.one },
   input: { minHeight: 32, paddingVertical: Platform.select({ android: 0, default: 4 }) },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    minHeight: HitSize,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.medium,
+  },
+  searchInput: { flex: 1, minHeight: HitSize, paddingVertical: 0 },
+  searchClear: { minWidth: 32, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
+  chip: {
+    minHeight: HitSize,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   segmented: { flexDirection: 'row', borderRadius: Radius.small + 1, padding: 2 },
   segment: { flex: 1, minHeight: HitSize - 4, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.small },
   empty: { alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.six, paddingHorizontal: Spacing.four },
