@@ -53,3 +53,8 @@ issues/
 
 # Local secrets (never commit)
 *token*.txt
+
+# Test output
+/test-results/
+/playwright-report/
+/coverage/
