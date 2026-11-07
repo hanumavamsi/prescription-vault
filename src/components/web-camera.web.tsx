@@ -149,7 +149,7 @@ export function WebCamera({ existingCount, maxPages, onDone, onCancel, onUnavail
         </View>
       )}
 
-      {/* Top bar: close and page count */}
+      {/* Top bar: close, page count, Done */}
       <View style={styles.topBar}>
         <Pressable
           accessibilityRole="button"
@@ -164,10 +164,17 @@ export function WebCamera({ existingCount, maxPages, onDone, onCancel, onUnavail
             {count === 0 ? 'Take a photo of page ' + (existingCount + 1) : `${count} ${count === 1 ? 'page' : 'pages'} taken`}
           </Text>
         </View>
-        <View style={{ width: 44 }} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Done, keep ${count} ${count === 1 ? 'page' : 'pages'}`}
+          disabled={!count || busy}
+          onPress={() => onDone(shots)}
+          style={({ pressed }) => [styles.doneButton, !count && styles.hidden, pressed && styles.pressed]}>
+          <Text style={[styles.dark, styles.bold]}>Done</Text>
+        </Pressable>
       </View>
 
-      {/* Bottom: thumbnails, then undo · shutter · done */}
+      {/* Bottom: thumbnails, then retake · shutter */}
       <View style={styles.bottom}>
         {error && (
           <Text style={[styles.light, styles.center]} accessibilityRole="alert">
@@ -214,14 +221,8 @@ export function WebCamera({ existingCount, maxPages, onDone, onCancel, onUnavail
             <View style={styles.shutterInner} />
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Done, keep ${count} ${count === 1 ? 'page' : 'pages'}`}
-            disabled={!count || busy}
-            onPress={() => onDone(shots)}
-            style={({ pressed }) => [styles.doneButton, !count && styles.hidden, pressed && styles.pressed]}>
-            <Text style={[styles.dark, styles.bold]}>Done</Text>
-          </Pressable>
+          {/* Keeps the shutter centred now that Done lives in the top bar. */}
+          <View style={styles.sideButton} />
         </View>
       </View>
     </View>
@@ -298,7 +299,7 @@ const styles = StyleSheet.create({
   },
   shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#fff' },
   doneButton: {
-    width: 72,
+    paddingHorizontal: Spacing.three,
     minHeight: 44,
     borderRadius: Radius.full,
     alignItems: 'center',
