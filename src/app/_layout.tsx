@@ -17,6 +17,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Button, EmptyState } from '@/components/ui';
+import { UpdateBanner } from '@/components/update-banner';
 import { Colors } from '@/constants/theme';
 import { AppLockProvider } from '@/lib/app-lock';
 import { AuthProvider, useAuth } from '@/lib/auth';
@@ -77,6 +78,7 @@ export default function RootLayout() {
               <RootNavigator />
             </AppLockProvider>
           </AuthProvider>
+          <UpdateBanner />
           <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         </ThemeProvider>
       </SafeAreaProvider>
