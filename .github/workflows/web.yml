@@ -1,6 +1,6 @@
 # Web app CI/CD.
-#   Pull request -> typecheck + lint, then a preview deploy whose link is commented on the PR.
-#   Push to master (a merged PR) -> typecheck + lint, then build and deploy to production.
+#   Pull request -> typecheck + lint + Supabase tests, then a preview deploy whose link is commented on the PR.
+#   Push to master (a merged PR) -> the same checks, then build and deploy to production.
 #
 # One-time setup (repo Settings -> Secrets and variables -> Actions):
 #   Secret   EXPO_TOKEN            Expo access token (expo.dev -> Account settings -> Access tokens)
@@ -40,9 +40,31 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx expo lint
 
+  test:
+    name: Supabase tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # Local stack from supabase/config.toml + migrations; edge runtime serves delete-account.
+      - run: supabase start -x studio,imgproxy,logflare,vector,mailpit
+      - name: Database tests (pgTAP)
+        run: supabase test db
+      - name: End-to-end tests (storage + delete-account)
+        run: |
+          eval "$(supabase status -o env)"
+          SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"             node supabase/tests/e2e.mjs
+
   deploy:
     name: ${{ github.event_name == 'pull_request' && 'Preview deploy' || 'Production deploy' }}
-    needs: check
+    needs: [check, test]
     runs-on: ubuntu-latest
     # Forked PRs get no secrets, so they can't deploy; they still get the checks above.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
