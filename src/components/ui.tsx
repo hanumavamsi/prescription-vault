@@ -68,6 +68,7 @@ export function useWebBottomInset() {
 
 /** SF Symbol names used in the app, each with its Material Symbol equivalent for Android. */
 const ANDROID_ICONS = {
+  'arrow.uturn.backward': 'undo',
   'arrow.up.left.and.arrow.down.right': 'open_in_full',
   'arrow.up.right.square': 'open_in_new',
   checkmark: 'check',

@@ -87,6 +87,39 @@ function canvasToJpeg(canvas: HTMLCanvasElement): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
 }
 
+/**
+ * Draw `source` downscaled (never upscaled) to MAX_EDGE on the long side and encode as a JPEG page.
+ * Returns null when the browser couldn't draw or encode it.
+ */
+async function toJpegPage(source: CanvasImageSource, w: number, h: number): Promise<LocalPage | null> {
+  const scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w * scale));
+  canvas.height = Math.max(1, Math.round(h * scale));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  // JPEG has no transparency; paint white so transparent PNGs don't turn black.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+  const blob = await canvasToJpeg(canvas);
+  // Release the canvas memory right away; iOS Safari has a low total canvas memory limit.
+  canvas.width = 0;
+  canvas.height = 0;
+  if (!blob) return null;
+  if (blob.size > MAX_PAGE_BYTES) {
+    throw new ScanError('This photo is larger than 20 MB. Please choose a smaller photo.');
+  }
+  return { uri: URL.createObjectURL(blob), mime: 'image/jpeg', size: blob.size };
+}
+
+/** One page from the live camera preview (see components/web-camera). */
+export async function captureVideoFrame(video: HTMLVideoElement): Promise<LocalPage> {
+  const page = video.videoWidth && video.videoHeight ? await toJpegPage(video, video.videoWidth, video.videoHeight) : null;
+  if (!page) throw new ScanError('The camera is not ready yet. Please try again.');
+  return page;
+}
+
 /** Downscale (never upscale) to MAX_EDGE on the long side and re-encode as JPEG. */
 async function normalizeImage(file: File): Promise<LocalPage> {
   let img: HTMLImageElement;
@@ -103,26 +136,9 @@ async function normalizeImage(file: File): Promise<LocalPage> {
   }
   const w = img.naturalWidth;
   const h = img.naturalHeight;
-  if (!w || !h) throw new ScanError('This image could not be read. Please try a different photo.');
-  const scale = Math.min(1, MAX_EDGE / Math.max(w, h));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(w * scale));
-  canvas.height = Math.max(1, Math.round(h * scale));
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new ScanError('This image could not be read. Please try a different photo.');
-  // JPEG has no transparency; paint white so transparent PNGs don't turn black.
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  const blob = await canvasToJpeg(canvas);
-  // Release the canvas memory right away; iOS Safari has a low total canvas memory limit.
-  canvas.width = 0;
-  canvas.height = 0;
-  if (!blob) throw new ScanError('This image could not be read. Please try a different photo.');
-  if (blob.size > MAX_PAGE_BYTES) {
-    throw new ScanError('This photo is larger than 20 MB. Please choose a smaller photo.');
-  }
-  return { uri: URL.createObjectURL(blob), mime: 'image/jpeg', size: blob.size };
+  const page = w && h ? await toJpegPage(img, w, h) : null;
+  if (!page) throw new ScanError('This image could not be read. Please try a different photo.');
+  return page;
 }
 
 async function normalizeAll(files: File[]) {

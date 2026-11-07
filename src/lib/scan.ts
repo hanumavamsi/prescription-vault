@@ -35,6 +35,11 @@ export function openSystemSettings() {
   return Linking.openSettings().catch(() => {});
 }
 
+/** Web only (live camera frame, see scan.web.ts). Native scans through the document scanner. */
+export async function captureVideoFrame(_video: unknown): Promise<LocalPage> {
+  throw new ScanError('The live camera is only used in the web app.');
+}
+
 function toFileUri(pathOrUri: string) {
   return /^[a-z][a-z0-9+.-]*:/i.test(pathOrUri) ? pathOrUri : `file://${pathOrUri}`;
 }
