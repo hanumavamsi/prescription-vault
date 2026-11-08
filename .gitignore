@@ -54,6 +54,9 @@ issues/
 # Local secrets (never commit)
 *token*.txt
 
+# graphify knowledge graph (generated locally)
+graphify-out/
+
 # Test output
 /test-results/
 /playwright-report/
