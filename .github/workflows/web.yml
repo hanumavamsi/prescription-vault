@@ -80,8 +80,8 @@ jobs:
   deploy:
     name: ${{ github.event_name == 'pull_request' && 'Preview deploy' || 'Production deploy' }}
     needs: [check, test]
-    # "production" requires the owner's approval in the Actions tab and only deploys from master
-    # (repo Settings -> Environments). Previews deploy without approval.
+    # "production" only deploys from master
+    # (repo Settings -> Environments; add a required reviewer there to gate deploys). Previews: no limits.
     environment: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
     runs-on: ubuntu-latest
     # Forked PRs get no secrets, so they can't deploy; they still get the checks above.
