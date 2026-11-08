@@ -22,7 +22,9 @@ import { Colors } from '@/constants/theme';
 import { AppLockProvider } from '@/lib/app-lock';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { clearPendingInvite, getPendingInvite } from '@/lib/pending-invite';
+import { initSentry, reportError } from '@/lib/sentry';
 
+initSentry();
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function navTheme(scheme: 'light' | 'dark'): Theme {
@@ -47,6 +49,7 @@ function navTheme(scheme: 'light' | 'dark'): Theme {
  */
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  useEffect(() => reportError(error), [error]);
   // A full reload also recovers from a failed route chunk download on the web.
   const reload = () => (Platform.OS === 'web' ? window.location.reload() : void retry());
   return (

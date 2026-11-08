@@ -103,6 +103,7 @@ jobs:
       EXPO_PUBLIC_OTP_LENGTH: ${{ vars.EXPO_PUBLIC_OTP_LENGTH }}
       EXPO_PUBLIC_GOOGLE_WEB_ENABLED: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_ENABLED }}
       EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+      EXPO_PUBLIC_SENTRY_DSN: ${{ vars.EXPO_PUBLIC_SENTRY_DSN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
