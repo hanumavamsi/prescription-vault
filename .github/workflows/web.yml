@@ -139,7 +139,7 @@ jobs:
           # Project ref is the subdomain of the Supabase URL (https://<ref>.supabase.co).
           ref=$(echo "$EXPO_PUBLIC_SUPABASE_URL" | sed -E 's#https://([^.]+)\..*#\1#')
           supabase link --project-ref "$ref"
-          supabase db push --remote
+          supabase db push --remote --yes
 
       - name: Build
         run: npx expo export --platform web
