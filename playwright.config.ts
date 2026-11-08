@@ -1,6 +1,6 @@
 /**
  * Browser end-to-end tests: the production web build (`expo export`) against the local Supabase
- * stack. Sign-in uses the real emailed code, read from the stack's mail catcher (Mailpit).
+ * stack, with the data API (cloudflare/) on local D1 + R2. Sign-in uses the real emailed code, read from the stack's mail catcher (Mailpit).
  *
  *   npx supabase start
  *   npm run e2e
@@ -11,6 +11,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { execSync } from 'node:child_process';
 
 const PORT = 8093;
+const API_PORT = 8788;
 
 function localStack() {
   // CI has the CLI installed globally; locally it runs through npx.
@@ -51,16 +52,29 @@ export default defineConfig({
     { name: 'iphone-webkit', use: { ...devices['iPhone 15'] } },
     { name: 'android-chromium', use: { ...devices['Pixel 7'] } },
   ],
-  webServer: {
-    command: `npx expo export --platform web --clear && node e2e/serve.mjs ${PORT}`,
-    url: `http://localhost:${PORT}`,
-    timeout: 300_000,
-    reuseExistingServer: false,
-    env: {
-      EXPO_NO_DOTENV: '1',
-      EXPO_PUBLIC_SUPABASE_URL: stack.API_URL,
-      EXPO_PUBLIC_SUPABASE_ANON_KEY: stack.ANON_KEY,
-      EXPO_PUBLIC_OTP_LENGTH: '6',
+  webServer: [
+    {
+      // Data API (cloudflare/) on local D1 + R2, trusting the local stack's tokens.
+      command:
+        'cd cloudflare && npx wrangler d1 migrations apply rx-vault --local && npx wrangler dev --port 8788 --ip 127.0.0.1' +
+        ` --var SUPABASE_URL:${stack.API_URL} --var SUPABASE_JWT_SECRET:${stack.JWT_SECRET}` +
+        ` --var SUPABASE_SERVICE_ROLE_KEY:${stack.SERVICE_ROLE_KEY} --var FILE_SIGNING_SECRET:e2e-file-secret`,
+      url: `http://127.0.0.1:${API_PORT}/profiles`, // 401 counts as up
+      timeout: 120_000,
+      reuseExistingServer: false,
     },
-  },
+    {
+      command: `npx expo export --platform web --clear && node e2e/serve.mjs ${PORT}`,
+      url: `http://localhost:${PORT}`,
+      timeout: 300_000,
+      reuseExistingServer: false,
+      env: {
+        EXPO_NO_DOTENV: '1',
+        EXPO_PUBLIC_SUPABASE_URL: stack.API_URL,
+        EXPO_PUBLIC_SUPABASE_ANON_KEY: stack.ANON_KEY,
+        EXPO_PUBLIC_API_URL: `http://127.0.0.1:${API_PORT}`,
+        EXPO_PUBLIC_OTP_LENGTH: '6',
+      },
+    },
+  ],
 });

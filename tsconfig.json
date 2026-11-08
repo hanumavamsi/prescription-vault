@@ -23,6 +23,7 @@
   ],
   "exclude": [
     "supabase",
+    "cloudflare",
     "node_modules"
   ]
 }

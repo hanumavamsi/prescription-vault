@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rx-vault-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "vars": {
+    // Same project the app signs in with (EXPO_PUBLIC_SUPABASE_URL).
+    "SUPABASE_URL": "https://YOUR-PROJECT.supabase.co"
+  },
+  // Secrets (wrangler secret put <NAME>; locally in .dev.vars):
+  //   FILE_SIGNING_SECRET        any long random string
+  //   SUPABASE_SERVICE_ROLE_KEY  for account deletion
+  //   SUPABASE_JWT_SECRET        only for legacy HS256 projects / local tests
+  "d1_databases": [
+    // database_id comes from: npx wrangler d1 create rx-vault
+    { "binding": "DB", "database_name": "rx-vault", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [
+    // npx wrangler r2 bucket create rx-vault-files
+    { "binding": "FILES", "bucket_name": "rx-vault-files" }
+  ]
+}
