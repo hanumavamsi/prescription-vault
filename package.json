@@ -78,5 +78,9 @@
     "testMatch": [
       "<rootDir>/__tests__/**/*.test.ts?(x)"
     ]
+  },
+  "overrides": {
+    "glob": "^14.0.2",
+    "minimatch": "^11.0.1"
   }
 }
