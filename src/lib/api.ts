@@ -20,7 +20,7 @@ import type {
 } from '@/lib/types';
 
 const BUCKET = 'documents';
-export const MAX_PAGE_BYTES = 20 * 1024 * 1024;
+export const MAX_PAGE_BYTES = 10 * 1024 * 1024;
 
 function must<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
@@ -158,7 +158,7 @@ export async function createDocument(
     for (let i = 0; i < input.pages.length; i++) {
       const page = input.pages[i];
       const bytes = await readBytes(page.uri);
-      if (bytes.byteLength > MAX_PAGE_BYTES) throw new Error(`Page ${i + 1} is larger than 20 MB`);
+      if (bytes.byteLength > MAX_PAGE_BYTES) throw new Error(`Page ${i + 1} is larger than 10 MB`);
       const ext = page.mime === 'application/pdf' ? 'pdf' : page.mime === 'image/png' ? 'png' : 'jpg';
       const path = `${input.profileId}/${doc.id}/${i + 1}-${Crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, { contentType: page.mime });

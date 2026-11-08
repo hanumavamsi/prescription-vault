@@ -142,11 +142,11 @@ describe('createDocument', () => {
     expect(deleted?.calls).toContainEqual(['eq', 'id', 'doc1']);
   });
 
-  it('refuses pages over 20 MB and cleans up', async () => {
+  it('refuses pages over 10 MB and cleans up', async () => {
     dbWithDoc();
     mockReadBytes.mockResolvedValueOnce(new ArrayBuffer(api.MAX_PAGE_BYTES + 1));
 
-    await expect(api.createDocument(input)).rejects.toThrow('Page 1 is larger than 20 MB');
+    await expect(api.createDocument(input)).rejects.toThrow('Page 1 is larger than 10 MB');
     expect(mockStorage.upload).not.toHaveBeenCalled();
     expect(mockDb.mock.calls.some(([q]) => q.table === 'documents' && has(q, 'delete'))).toBe(true);
   });
