@@ -239,6 +239,11 @@ export async function leaveSharedProfile(profileId: string) {
 
 // ------------------------------------------------------------------ account
 
+/** False while the account is on the beta waitlist (see the waitlist migration). */
+export async function isApproved(): Promise<boolean> {
+  return must<boolean>(await supabase.rpc('is_approved'));
+}
+
 export async function deleteAccount() {
   const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
   if (error) throw new Error(error.message);

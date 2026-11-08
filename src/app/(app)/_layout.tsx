@@ -1,8 +1,11 @@
 import { Stack } from 'expo-router';
 import { Platform } from 'react-native';
 
+import { Waitlist } from '@/components/waitlist';
 import { Type } from '@/constants/theme';
+import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
+import { isApproved } from '@/lib/api';
 
 const ios = Platform.OS === 'ios';
 
@@ -14,6 +17,10 @@ export const unstable_settings = { anchor: 'index' };
 
 export default function AppLayout() {
   const theme = useTheme();
+  // Rechecked on focus, so accepting an invite (opened on top) lets a waitlisted user straight in.
+  // Unknown (loading/offline) shows the app; the database refuses writes from waitlisted users anyway.
+  const approved = useQuery(isApproved);
+  if (approved.data === false) return <Waitlist onCheckAgain={approved.refresh} />;
   return (
     <Stack
       screenOptions={{
