@@ -73,6 +73,7 @@ cp .env.example .env
 | `EXPO_PUBLIC_INVITE_BASE_URL` | `prescriptionvault://invite` for development; your universal-link base (e.g. `https://rxvault.example/invite`) in production |
 | `EXPO_PUBLIC_PRIVACY_URL` / `EXPO_PUBLIC_TERMS_URL` | Public URLs of your privacy policy and terms (shown on sign-in and in Settings) |
 | `EXPO_PUBLIC_SUPPORT_EMAIL` | Support address shown in Settings |
+| `EXPO_PUBLIC_TURNSTILE_SITE_KEY` | Optional, web only. Cloudflare Turnstile site key; when set, the email-code form runs Turnstile and sends its token. Set it (and deploy) **before** enabling captcha in Supabase → Auth → Bot and Abuse Protection with the widget's secret key, or email sign-in breaks. Leave unset to skip captcha |
 
 For EAS builds, set the same variables as EAS environment variables (`npx eas-cli env:create` or expo.dev → Project → Environment variables) for `development`, `preview` and `production`. All are public client values; never put the service-role key in the app.
 

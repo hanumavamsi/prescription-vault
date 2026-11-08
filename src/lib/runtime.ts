@@ -17,6 +17,14 @@ export const devEmailLogin = __DEV__;
 export const googleWebEnabled = process.env.EXPO_PUBLIC_GOOGLE_WEB_ENABLED === 'true';
 
 /**
+ * Cloudflare Turnstile site key. When set, the web email-code form shows the widget and sends its
+ * token with the code request (Supabase Auth → Bot and Abuse Protection must use the same widget).
+ * shortcut: native sends no captcha token, so email codes fail there once captcha is enabled in
+ * Supabase; add a WebView-based Turnstile when the native app ships.
+ */
+export const turnstileSiteKey = isWeb ? process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY?.trim() || undefined : undefined;
+
+/**
  * Base URL invite links point to (the token is appended as `/<token>`).
  * Native: EXPO_PUBLIC_INVITE_BASE_URL, falling back to the app scheme.
  * Web: EXPO_PUBLIC_INVITE_BASE_URL when it is an http(s) URL, otherwise this site's own /invite.
