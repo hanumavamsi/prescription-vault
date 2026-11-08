@@ -7,6 +7,9 @@
 # One-time setup (repo Settings -> Secrets and variables -> Actions):
 #   Secret   EXPO_TOKEN            Expo access token (expo.dev -> Account settings -> Access tokens)
 #   Variables EXPO_PUBLIC_*        the values from .env.production (all public; they ship in the bundle)
+#   Environment "production" secrets (Settings -> Environments -> production), for migrations:
+#     SUPABASE_ACCESS_TOKEN  supabase.com/dashboard/account/tokens
+#     SUPABASE_DB_PASSWORD   the database password (Project Settings -> Database)
 
 name: Web
 
@@ -116,6 +119,27 @@ jobs:
             if [ -z "${!v}" ]; then echo "::error::$v is not set in the repo's Actions secrets/variables"; missing=1; fi
           done
           exit $missing
+
+      # Production only: apply new migrations before the web app that needs them goes live.
+      # Already-applied migrations are skipped, so this is a no-op when nothing changed.
+      # Secrets live in the "production" environment, so only master can use them.
+      - uses: supabase/setup-cli@v1
+        if: github.event_name != 'pull_request'
+        with:
+          version: latest
+      - name: Apply database migrations
+        if: github.event_name != 'pull_request'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          for v in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD; do
+            if [ -z "${!v}" ]; then echo "::error::$v is not set in the production environment's secrets"; exit 1; fi
+          done
+          # Project ref is the subdomain of the Supabase URL (https://<ref>.supabase.co).
+          ref=$(echo "$EXPO_PUBLIC_SUPABASE_URL" | sed -E 's#https://([^.]+)\..*#\1#')
+          supabase link --project-ref "$ref"
+          supabase db push
 
       - name: Build
         run: npx expo export --platform web
