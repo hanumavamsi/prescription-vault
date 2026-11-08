@@ -3,6 +3,7 @@
  * decides the result, so tests can fail any step (e.g. the second page upload).
  */
 import * as api from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
 type Call = [string, ...unknown[]];
 type Query = { table: string; calls: Call[] };
@@ -42,6 +43,7 @@ jest.mock('@/lib/supabase', () => {
 });
 jest.mock('@/lib/bytes', () => ({ readBytes: (uri: string) => mockReadBytes(uri) }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'uuid' }));
+jest.mock('@/lib/runtime', () => ({ inviteBaseUrl: () => 'https://rx.test/invite' }));
 
 const has = (q: Query, method: string) => q.calls.some(([m]) => m === method);
 
@@ -167,5 +169,34 @@ describe('deleteDocument', () => {
     mockStorage.remove.mockResolvedValueOnce({ error: { message: 'storage down' } });
     await expect(api.deleteDocument('doc1')).rejects.toThrow('storage down');
     expect(mockDb.mock.calls.some(([q]) => q.table === 'documents' && has(q, 'delete'))).toBe(false);
+  });
+});
+
+describe('invites', () => {
+  const rpc = supabase.rpc as jest.Mock;
+
+  it('creates view and claim links from the token', async () => {
+    rpc.mockResolvedValue({ data: 'tok', error: null });
+    await expect(api.createViewInvite()).resolves.toBe('https://rx.test/invite/tok');
+    expect(rpc).toHaveBeenLastCalledWith('create_invite', { p_purpose: 'view' });
+    await expect(api.createClaimInvite('p1')).resolves.toBe('https://rx.test/invite/tok');
+    expect(rpc).toHaveBeenLastCalledWith('create_invite', { p_purpose: 'claim', p_profile_id: 'p1' });
+  });
+
+  it('previews an invite, or null when the token is unknown', async () => {
+    const preview = { purpose: 'view', from_name: 'Asha', profile_name: null, valid: true, is_own: false };
+    rpc.mockResolvedValueOnce({ data: [preview], error: null });
+    await expect(api.getInvite('tok')).resolves.toEqual(preview);
+    rpc.mockResolvedValueOnce({ data: [], error: null });
+    await expect(api.getInvite('nope')).resolves.toBeNull();
+  });
+
+  it('accepts and declines by token, surfacing server errors', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: null });
+    await api.acceptInvite('tok');
+    expect(rpc).toHaveBeenLastCalledWith('accept_invite', { p_token: 'tok' });
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'invite expired' } });
+    await expect(api.declineInvite('tok')).rejects.toThrow('invite expired');
+    expect(rpc).toHaveBeenLastCalledWith('decline_invite', { p_token: 'tok' });
   });
 });
