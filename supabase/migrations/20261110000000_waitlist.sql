@@ -12,7 +12,7 @@ create table public.signup_limits (
   direct_cap int not null check (direct_cap >= 0),
   total_cap  int not null check (total_cap >= direct_cap)
 );
-insert into public.signup_limits (direct_cap, total_cap) values (50, 150);
+insert into public.signup_limits (direct_cap, total_cap) values (30, 100);
 alter table public.signup_limits enable row level security; -- no policies: not readable by clients
 revoke all on public.signup_limits from anon, authenticated;
 
