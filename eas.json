@@ -5,7 +5,9 @@
   },
   "build": {
     "base": {
-      "env": {}
+      "env": {
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
     },
     "development": {
       "extends": "base",
