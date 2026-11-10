@@ -91,3 +91,30 @@ test('sign in, add a document, find it, manage a family member, delete the accou
   const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
   expect(data.users.map((u) => u.email)).not.toContain(email);
 });
+
+test('over the signup cap: waitlist screen, no app, can delete the account', async ({ page }, info) => {
+  const admin = createClient(process.env.E2E_SUPABASE_URL!, process.env.E2E_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+  const { data: before, error } = await admin.from('signup_limits').select('direct_cap').single();
+  if (error) throw error;
+  await admin.from('signup_limits').update({ direct_cap: 0 }).eq('id', true);
+  try {
+    const email = `e2e-wait-${info.project.name}-${Date.now()}@test.dev`;
+    await page.goto('/');
+    await page.getByRole('checkbox', { name: /I agree to the Terms/ }).click();
+    const useEmail = page.getByRole('button', { name: 'Use email instead' });
+    if (await useEmail.isVisible()) await useEmail.click();
+    await page.getByLabel('Email', { exact: true }).fill(email);
+    await page.getByRole('button', { name: 'Email me a sign-in code' }).click();
+    await page.getByLabel('6-digit code').fill(await emailedCode(email));
+
+    await expect(page.getByText("You're on the waitlist")).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add my document' })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Delete my account' }).click();
+    await expect(page.getByRole('checkbox', { name: /I agree to the Terms/ })).toBeVisible();
+    const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    expect(data.users.map((u) => u.email)).not.toContain(email);
+  } finally {
+    await admin.from('signup_limits').update({ direct_cap: before.direct_cap }).eq('id', true);
+  }
+});

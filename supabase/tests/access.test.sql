@@ -3,6 +3,9 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(24);
 
+-- Waitlist caps are covered in waitlist.test.sql; here everyone gets in.
+update signup_limits set direct_cap = 1000000, total_cap = 1000000;
+
 -- users: a (requester), b (approver), c (stranger)
 insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-00000000000a', 'a@test.dev', '{"full_name":"Asha"}'),
