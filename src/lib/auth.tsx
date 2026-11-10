@@ -27,8 +27,12 @@ type AuthContextValue = {
   signInWithGoogle(): Promise<void>;
   /** Web: finishes sign-in with the ID token from Google's button or One Tap. */
   signInWithGoogleCredential(c: GoogleCredential): Promise<void>;
-  /** Emails a sign-in code (otpLength digits), creating the account on first use. */
-  requestEmailCode(email: string): Promise<void>;
+  /**
+   * Emails a sign-in code (otpLength digits), creating the account on first use. Once Supabase
+   * captcha is on, this is the only sign-in call that needs a Turnstile token: verifyOtp, OAuth and
+   * the id_token grant (Google/Apple) are exempt in Supabase Auth.
+   */
+  requestEmailCode(email: string, captchaToken?: string): Promise<void>;
   /** Signs in with the code from requestEmailCode. */
   verifyEmailCode(email: string, code: string): Promise<void>;
   /** Development only (see devEmailLogin). Signs in, creating the account on first use. */
@@ -93,6 +97,9 @@ function friendlyCode(e: unknown, fallback: string, verifying = false): Error {
   }
   if (!verifying && /invalid.*email|email.*invalid|validate email/i.test(msg)) {
     return new Error('Please enter a valid email address.');
+  }
+  if (/captcha/i.test(msg)) {
+    return new Error('The security check did not pass. Wait a moment, then try again or reload the page.');
   }
   if (/signups? not allowed|signup is disabled/i.test(msg)) {
     return new Error('New accounts are not open right now.');
@@ -223,10 +230,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw friendly(error, 'Google sign-in failed.');
   }, []);
 
-  const requestEmailCode = useCallback(async (email: string) => {
+  const requestEmailCode = useCallback(async (email: string, captchaToken?: string) => {
     const { error } = await supabase.auth.signInWithOtp({
       email: normalizeEmail(email),
-      options: { shouldCreateUser: true },
+      options: { shouldCreateUser: true, captchaToken },
     });
     if (error) throw friendlyCode(error, 'Could not send the code.');
   }, []);

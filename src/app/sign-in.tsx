@@ -4,6 +4,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GoogleWebButton } from '@/components/google-web-button';
+import { Turnstile } from '@/components/turnstile';
 import { Button, Field, Icon, Text } from '@/components/ui';
 import { HitSize, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -11,7 +12,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
 import { googleIdentityAvailable, type GoogleCredential } from '@/lib/google-web';
 import { PRIVACY_URL, TERMS_URL, openLink } from '@/lib/links';
-import { devEmailLogin, googleWebEnabled, isExpoGo, isWeb, otpLength } from '@/lib/runtime';
+import { devEmailLogin, googleWebEnabled, isExpoGo, isWeb, otpLength, turnstileSiteKey } from '@/lib/runtime';
 
 type Method = 'apple' | 'google' | 'send-code' | 'verify-code' | 'email';
 
@@ -63,6 +64,8 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [captcha, setCaptcha] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
 
   // Email code is the fallback: tucked behind a link whenever a one-tap provider is offered.
   const showEmailForm = emailOpen || sentTo != null || (!showGoogle && !appleAvailable);
@@ -105,7 +108,16 @@ export default function SignInScreen() {
           break;
         case 'send-code': {
           const to = (sentTo ?? codeEmail).trim();
-          await requestEmailCode(to);
+          if (turnstileSiteKey && !captcha) throw new Error('Running a quick security check. Try again in a moment.');
+          try {
+            await requestEmailCode(to, captcha ?? undefined);
+          } finally {
+            // Turnstile tokens are single-use: fetch a fresh one for a resend or retry.
+            if (captcha) {
+              setCaptcha(null);
+              setCaptchaReset((n) => n + 1);
+            }
+          }
           setSentTo(to);
           setCode('');
           const t = Date.now();
@@ -336,6 +348,7 @@ export default function SignInScreen() {
                   </View>
                 </>
               )}
+              {turnstileSiteKey && <Turnstile onToken={setCaptcha} onError={setError} resetKey={captchaReset} />}
             </View>
           )}
 
