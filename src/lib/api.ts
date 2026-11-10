@@ -1,9 +1,8 @@
 /**
- * All data access goes through here. Screens never call supabase directly,
- * except auth calls in src/lib/auth.tsx.
+ * All data access goes through here. Screens never call the backend directly.
+ * Data lives behind the Cloudflare Worker in cloudflare/ (D1 + R2); Supabase is only used for
+ * sign-in (src/lib/auth.tsx), and its access token authorizes every call below.
  */
-import * as Crypto from 'expo-crypto';
-
 import { readBytes } from '@/lib/bytes';
 import { inviteBaseUrl } from '@/lib/runtime';
 import { supabase } from '@/lib/supabase';
@@ -19,39 +18,33 @@ import type {
   Viewer,
 } from '@/lib/types';
 
-const BUCKET = 'documents';
 export const MAX_PAGE_BYTES = 20 * 1024 * 1024;
 
-function must<T>(res: { data: T | null; error: { message: string } | null }): T {
-  if (res.error) throw new Error(res.error.message);
-  return res.data as T;
-}
-
-async function currentUserId(): Promise<string> {
+async function call<T = unknown>(method: string, path: string, body?: unknown, contentType?: string): Promise<T> {
   const { data } = await supabase.auth.getSession();
-  const id = data.session?.user.id;
-  if (!id) throw new Error('Not signed in');
-  return id;
+  const token = data.session?.access_token;
+  if (!token) throw new Error('Not signed in');
+  const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+  if (!API_URL) throw new Error('Missing EXPO_PUBLIC_API_URL. Copy .env.example to .env.');
+  const raw = body instanceof ArrayBuffer;
+  const res = await fetch(API_URL + path, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body === undefined ? {} : { 'Content-Type': contentType ?? 'application/json' }),
+    },
+    body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error ?? `Request failed (${res.status})`);
+  return json as T;
 }
 
 // ------------------------------------------------------------------ profiles
 
 /** Own profile first, then managed profiles, then people who shared with me. */
-export async function listProfiles(): Promise<ProfileWithRole[]> {
-  const uid = await currentUserId();
-  const [profiles, grants] = await Promise.all([
-    supabase.from('profiles').select('*').order('created_at').then(must<Profile[]>),
-    supabase.from('access_grants').select('profile_id').eq('viewer_id', uid).then(must<{ profile_id: string }[]>),
-  ]);
-  const shared = new Set(grants.map((g) => g.profile_id));
-  const rank = { self: 0, managed: 1, viewer: 2 } as const;
-  return profiles
-    .filter((p) => p.user_id === uid || p.manager_id === uid || shared.has(p.id))
-    .map((p): ProfileWithRole => ({
-      ...p,
-      role: p.user_id === uid ? 'self' : p.manager_id === uid ? 'managed' : 'viewer',
-    }))
-    .sort((a, b) => rank[a.role] - rank[b.role]);
+export function listProfiles(): Promise<ProfileWithRole[]> {
+  return call('GET', '/profiles');
 }
 
 export async function getProfile(id: string): Promise<ProfileWithRole> {
@@ -61,60 +54,36 @@ export async function getProfile(id: string): Promise<ProfileWithRole> {
   return p;
 }
 
-export async function createManagedProfile(displayName: string, relation?: string): Promise<Profile> {
-  const uid = await currentUserId();
-  return must(
-    await supabase
-      .from('profiles')
-      .insert({ display_name: displayName.trim(), relation: relation?.trim() || null, manager_id: uid })
-      .select()
-      .single(),
-  );
+export function createManagedProfile(displayName: string, relation?: string): Promise<Profile> {
+  return call('POST', '/profiles', { display_name: displayName.trim(), relation: relation?.trim() || null });
 }
 
 export async function updateProfile(id: string, patch: { display_name?: string; relation?: string | null }) {
-  must(await supabase.from('profiles').update(patch).eq('id', id));
+  await call('PATCH', `/profiles/${id}`, patch);
 }
 
 /** Deletes a managed profile and its files. */
 export async function deleteManagedProfile(id: string) {
-  const docs = must(await supabase.from('documents').select('id').eq('profile_id', id));
-  for (const d of docs) await deleteDocument(d.id);
-  must(await supabase.from('profiles').delete().eq('id', id));
+  await call('DELETE', `/profiles/${id}`);
 }
 
 // ------------------------------------------------------------------ documents
 
-export async function listDocuments(profileId: string, type?: DocType): Promise<Document[]> {
-  let q = supabase
-    .from('documents')
-    .select('*')
-    .eq('profile_id', profileId)
-    .order('doc_date', { ascending: false })
-    .order('created_at', { ascending: false });
-  if (type) q = q.eq('type', type);
-  return must(await q);
+export function listDocuments(profileId: string, type?: DocType): Promise<Document[]> {
+  return call('GET', `/profiles/${profileId}/documents${type ? `?type=${type}` : ''}`);
 }
 
-export async function getDocument(id: string): Promise<{ doc: Document; pages: DocumentPage[] }> {
-  const [doc, pages] = await Promise.all([
-    supabase.from('documents').select('*').eq('id', id).single().then(must<Document>),
-    supabase.from('document_pages').select('*').eq('document_id', id).order('page_no').then(must<DocumentPage[]>),
-  ]);
-  return { doc, pages };
+export function getDocument(id: string): Promise<{ doc: Document; pages: DocumentPage[] }> {
+  return call('GET', `/documents/${id}`);
 }
 
 export async function updateDocument(id: string, patch: Partial<DocDetails>) {
-  must(await supabase.from('documents').update(patch).eq('id', id));
+  await call('PATCH', `/documents/${id}`, patch);
 }
 
+/** Deletes a document and its files. */
 export async function deleteDocument(id: string) {
-  const pages = must(await supabase.from('document_pages').select('storage_path').eq('document_id', id));
-  if (pages.length) {
-    const { error } = await supabase.storage.from(BUCKET).remove(pages.map((p) => p.storage_path));
-    if (error) throw new Error(error.message);
-  }
-  must(await supabase.from('documents').delete().eq('id', id));
+  await call('DELETE', `/documents/${id}`);
 }
 
 /**
@@ -135,49 +104,27 @@ export async function createDocument(
   onProgress?: (done: number, total: number) => void,
 ): Promise<Document> {
   if (!input.pages.length) throw new Error('Add at least one page');
-  const uid = await currentUserId();
-  const doc = must<Document>(
-    await supabase
-      .from('documents')
-      .insert({
-        profile_id: input.profileId,
-        type: input.type,
-        doc_date: input.docDate,
-        title: input.title?.trim() || null,
-        doctor: input.doctor?.trim() || null,
-        specialty: input.specialty?.trim() || null,
-        hospital: input.hospital?.trim() || null,
-        created_by: uid,
-      })
-      .select()
-      .single(),
-  );
+  const doc = await call<Document>('POST', '/documents', {
+    profile_id: input.profileId,
+    type: input.type,
+    doc_date: input.docDate,
+    title: input.title?.trim() || null,
+    doctor: input.doctor?.trim() || null,
+    specialty: input.specialty?.trim() || null,
+    hospital: input.hospital?.trim() || null,
+  });
 
-  const uploaded: string[] = [];
   try {
     for (let i = 0; i < input.pages.length; i++) {
       const page = input.pages[i];
       const bytes = await readBytes(page.uri);
       if (bytes.byteLength > MAX_PAGE_BYTES) throw new Error(`Page ${i + 1} is larger than 20 MB`);
-      const ext = page.mime === 'application/pdf' ? 'pdf' : page.mime === 'image/png' ? 'png' : 'jpg';
-      const path = `${input.profileId}/${doc.id}/${i + 1}-${Crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, { contentType: page.mime });
-      if (error) throw new Error(error.message);
-      uploaded.push(path);
-      must(
-        await supabase.from('document_pages').insert({
-          document_id: doc.id,
-          page_no: i + 1,
-          storage_path: path,
-          mime: page.mime,
-          size_bytes: bytes.byteLength,
-        }),
-      );
+      await call('PUT', `/documents/${doc.id}/pages/${i + 1}`, bytes, page.mime);
       onProgress?.(i + 1, input.pages.length);
     }
   } catch (e) {
-    if (uploaded.length) await supabase.storage.from(BUCKET).remove(uploaded);
-    await supabase.from('documents').delete().eq('id', doc.id);
+    // The Worker removes the uploaded files with the document.
+    await deleteDocument(doc.id).catch(() => {});
     throw e;
   }
   return { ...doc, page_count: input.pages.length };
@@ -185,9 +132,8 @@ export async function createDocument(
 
 /** Short-lived signed URL for a page. Use src/lib/cache.ts for display. */
 export async function signedPageUrl(storagePath: string, expiresIn = 300): Promise<string> {
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, expiresIn);
-  if (error || !data) throw new Error(error?.message ?? 'Could not load file');
-  return data.signedUrl;
+  const { url } = await call<{ url: string }>('GET', `/sign?path=${encodeURIComponent(storagePath)}&ttl=${expiresIn}`);
+  return url;
 }
 
 // ------------------------------------------------------------------ family / invites
@@ -198,43 +144,41 @@ export function inviteUrl(token: string) {
 
 /** Link asking someone to let me view their records. */
 export async function createViewInvite(): Promise<string> {
-  const token = must<string>(await supabase.rpc('create_invite', { p_purpose: 'view' }));
+  const { token } = await call<{ token: string }>('POST', '/invites', { purpose: 'view' });
   return inviteUrl(token);
 }
 
 /** Link handing a managed profile over to the person it belongs to. */
 export async function createClaimInvite(profileId: string): Promise<string> {
-  const token = must<string>(await supabase.rpc('create_invite', { p_purpose: 'claim', p_profile_id: profileId }));
+  const { token } = await call<{ token: string }>('POST', '/invites', { purpose: 'claim', profile_id: profileId });
   return inviteUrl(token);
 }
 
-export async function getInvite(token: string): Promise<InvitePreview | null> {
-  const rows = must<InvitePreview[]>(await supabase.rpc('get_invite', { p_token: token }));
-  return rows[0] ?? null;
+export function getInvite(token: string): Promise<InvitePreview | null> {
+  return call('GET', `/invites/${encodeURIComponent(token)}`);
 }
 
 export async function acceptInvite(token: string): Promise<void> {
-  must(await supabase.rpc('accept_invite', { p_token: token }));
+  await call('POST', `/invites/${encodeURIComponent(token)}/accept`);
 }
 
 export async function declineInvite(token: string): Promise<void> {
-  must(await supabase.rpc('decline_invite', { p_token: token }));
+  await call('POST', `/invites/${encodeURIComponent(token)}/decline`);
 }
 
 /** People who can see my records. */
-export async function listMyViewers(): Promise<Viewer[]> {
-  return must<Viewer[]>(await supabase.rpc('list_my_viewers'));
+export function listMyViewers(): Promise<Viewer[]> {
+  return call('GET', '/viewers');
 }
 
 /** Remove someone's access to my records, or stop viewing someone's (both are a grant delete). */
 export async function revokeGrant(grantId: string) {
-  must(await supabase.from('access_grants').delete().eq('id', grantId));
+  await call('DELETE', `/grants/${grantId}`);
 }
 
 /** Stop viewing a profile that was shared with me. */
 export async function leaveSharedProfile(profileId: string) {
-  const uid = await currentUserId();
-  must(await supabase.from('access_grants').delete().eq('profile_id', profileId).eq('viewer_id', uid));
+  await call('DELETE', `/shared/${profileId}`);
 }
 
 // ------------------------------------------------------------------ account
@@ -245,7 +189,6 @@ export async function isApproved(): Promise<boolean> {
 }
 
 export async function deleteAccount() {
-  const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
-  if (error) throw new Error(error.message);
+  await call('DELETE', '/account');
   await supabase.auth.signOut();
 }

@@ -70,6 +70,16 @@ jobs:
           eval "$(supabase status -o env)"
           SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
             node supabase/tests/e2e.mjs
+      - name: Worker API tests (D1 + R2 access rules)
+        working-directory: cloudflare
+        run: |
+          npm ci
+          npx tsc --noEmit
+          cp .dev.vars.example .dev.vars
+          npx wrangler d1 migrations apply rx-vault --local
+          npx wrangler dev --port 8787 --ip 127.0.0.1 > wrangler.log 2>&1 &
+          for i in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:8787/profiles && break; sleep 2; done
+          npm test || { cat wrangler.log; exit 1; }
       - run: npx playwright install --with-deps chromium webkit
       - name: Browser tests (Playwright, production build)
         run: npm run e2e
@@ -96,6 +106,7 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
       EXPO_PUBLIC_INVITE_BASE_URL: ${{ vars.EXPO_PUBLIC_INVITE_BASE_URL }}
       EXPO_PUBLIC_PRIVACY_URL: ${{ vars.EXPO_PUBLIC_PRIVACY_URL }}
       EXPO_PUBLIC_TERMS_URL: ${{ vars.EXPO_PUBLIC_TERMS_URL }}
@@ -115,7 +126,7 @@ jobs:
       - name: Check configuration
         run: |
           missing=0
-          for v in EXPO_TOKEN EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY; do
+          for v in EXPO_TOKEN EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_API_URL; do
             if [ -z "${!v}" ]; then echo "::error::$v is not set in the repo's Actions secrets/variables"; missing=1; fi
           done
           exit $missing
