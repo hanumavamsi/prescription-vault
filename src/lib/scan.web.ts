@@ -108,7 +108,7 @@ async function toJpegPage(source: CanvasImageSource, w: number, h: number): Prom
   canvas.height = 0;
   if (!blob) return null;
   if (blob.size > MAX_PAGE_BYTES) {
-    throw new ScanError('This photo is larger than 20 MB. Please choose a smaller photo.');
+    throw new ScanError('This photo is larger than 10 MB. Please choose a smaller photo.');
   }
   return { uri: URL.createObjectURL(blob), mime: 'image/jpeg', size: blob.size };
 }
@@ -172,7 +172,7 @@ export async function pickPdf(): Promise<LocalPage[]> {
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
   if (!isPdf) throw new ScanError('That file is not a PDF. Please choose a PDF file.');
   if (file.size > MAX_PAGE_BYTES) {
-    throw new ScanError('This PDF is larger than 20 MB. Please choose a smaller file.');
+    throw new ScanError('This PDF is larger than 10 MB. Please choose a smaller file.');
   }
   // Re-wrap so the blob carries the right type even when the browser reported none.
   const blob = file.type === 'application/pdf' ? file : new Blob([file], { type: 'application/pdf' });

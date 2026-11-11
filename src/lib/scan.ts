@@ -177,7 +177,7 @@ export async function pickPdf(): Promise<LocalPage[]> {
   if (!isPdf) throw new ScanError('That file is not a PDF. Please choose a PDF file.');
   const size = asset.size ?? fileSize(asset.uri);
   if (size != null && size > MAX_PAGE_BYTES) {
-    throw new ScanError('This PDF is larger than 20 MB. Please choose a smaller file.');
+    throw new ScanError('This PDF is larger than 10 MB. Please choose a smaller file.');
   }
   return [{ uri: asset.uri, mime: 'application/pdf', size }];
 }
