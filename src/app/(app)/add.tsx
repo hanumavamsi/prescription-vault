@@ -3,7 +3,7 @@ import { router, Stack, useLocalSearchParams, usePreventRemove } from 'expo-rout
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { DocDetailsFields, type DetailsValue } from '@/components/doc-details-fields';
+import { DocDetailsFields, PrivateSwitch, type DetailsValue } from '@/components/doc-details-fields';
 import { WebCamera, webCameraSupported } from '@/components/web-camera';
 import {
   Avatar,
@@ -69,6 +69,7 @@ export default function AddDocumentScreen() {
   const [date, setDate] = useState(todayISO);
   const [title, setTitle] = useState('');
   const [details, setDetails] = useState<DetailsValue>({ doctor: '', specialty: '', hospital: '' });
+  const [isPrivate, setIsPrivate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -209,7 +210,7 @@ export default function AddDocumentScreen() {
     setProgress({ done: 0, total: pages.length });
     try {
       await createDocument(
-        { profileId, type, docDate: date, title: title.trim() || undefined, ...details, pages },
+        { profileId, type, docDate: date, title: title.trim() || undefined, ...details, private: isPrivate, pages },
         (d, total) => setProgress({ done: d, total }),
       );
       deleteLocalPages(pages);
@@ -478,6 +479,8 @@ export default function AddDocumentScreen() {
       </Section>
 
       <DocDetailsFields value={details} onChange={setDetails} editable={!saving} />
+
+      <PrivateSwitch value={isPrivate} onChange={setIsPrivate} editable={!saving} />
 
       {error && <InlineError message={error} />}
 

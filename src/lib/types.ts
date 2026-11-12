@@ -25,12 +25,14 @@ export type Document = {
   /** Hospital, clinic or lab. */
   hospital: string | null;
   page_count: number;
+  /** "Only me": hidden from people the owner shares records with. */
+  private: boolean;
   created_by: string | null;
   created_at: string;
 };
 
 /** The editable, searchable fields of a document. */
-export type DocDetails = Pick<Document, 'type' | 'doc_date' | 'title' | 'doctor' | 'specialty' | 'hospital'>;
+export type DocDetails = Pick<Document, 'type' | 'doc_date' | 'title' | 'doctor' | 'specialty' | 'hospital' | 'private'>;
 
 export type DocumentPage = {
   id: string;

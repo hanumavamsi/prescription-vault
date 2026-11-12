@@ -1,7 +1,7 @@
 -- Access-model tests. Run: npx supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(31);
 
 -- Waitlist caps are covered in waitlist.test.sql; here everyone gets in.
 update signup_limits set direct_cap = 1000000, total_cap = 1000000;
@@ -89,6 +89,30 @@ update documents set title = 'hacked' where title = 'B blood test';
 select is((select count(*)::int from documents where title = 'hacked'), 0, 'A cannot edit B doc');
 delete from documents where title = 'B blood test';
 select is((select count(*)::int from documents where title = 'B blood test'), 1, 'A cannot delete B doc');
+
+-- ---- private ("Only me") documents are hidden from viewers, including their pages and files
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+insert into documents (profile_id, type, title, private, created_by)
+  select id, 'report', 'B secret', true, auth.uid() from profiles where user_id = auth.uid();
+insert into document_pages (document_id, page_no, storage_path, mime)
+  select id, 1, profile_id || '/' || id || '/1.jpg', 'image/jpeg' from documents where title in ('B blood test', 'B secret');
+select is((select count(*)::int from documents where title = 'B secret'), 1, 'owner sees own private doc');
+reset role;
+insert into storage.objects (bucket_id, name) select 'documents', storage_path from document_pages;
+create temp table t_paths as
+  select d.title, p.storage_path from document_pages p join documents d on d.id = p.document_id;
+grant select on t_paths to authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select is((select count(*)::int from storage.objects where name = (select storage_path from t_paths where title = 'B secret')), 1, 'owner reads own private file');
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select is((select count(*)::int from documents where title = 'B secret'), 0, 'viewer cannot see private doc');
+select is((select count(*)::int from document_pages where storage_path = (select storage_path from t_paths where title = 'B secret')), 0, 'viewer cannot see private doc pages');
+select is((select count(*)::int from storage.objects where name = (select storage_path from t_paths where title = 'B secret')), 0, 'viewer cannot read private file');
+select is((select count(*)::int from storage.objects where name = (select storage_path from t_paths where title = 'B blood test')), 1, 'viewer reads shared file');
+update documents set private = true where title = 'B blood test';
+select is((select count(*)::int from documents where title = 'B blood test'), 1, 'viewer cannot make a shared doc private');
 
 -- ---- C (stranger) sees nothing
 reset role;

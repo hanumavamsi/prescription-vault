@@ -130,6 +130,7 @@ export async function createDocument(
     doctor?: string;
     specialty?: string;
     hospital?: string;
+    private?: boolean;
     pages: LocalPage[];
   },
   onProgress?: (done: number, total: number) => void,
@@ -147,6 +148,7 @@ export async function createDocument(
         doctor: input.doctor?.trim() || null,
         specialty: input.specialty?.trim() || null,
         hospital: input.hospital?.trim() || null,
+        private: input.private ?? false,
         created_by: uid,
       })
       .select()
