@@ -1,0 +1,3 @@
+# Database migrations and CI change production directly: they need the owner's review.
+/supabase/ @hanumavamsi
+/.github/  @hanumavamsi
