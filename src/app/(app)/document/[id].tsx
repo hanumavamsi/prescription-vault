@@ -14,7 +14,7 @@ import {
   type ListViewToken,
 } from 'react-native';
 
-import { DocDetailsFields, type DetailsValue } from '@/components/doc-details-fields';
+import { DocDetailsFields, PrivateSwitch, type DetailsValue } from '@/components/doc-details-fields';
 import { PageView } from '@/components/page-view';
 import {
   Button,
@@ -301,6 +301,7 @@ function EditSheet({
   const [date, setDate] = useState(doc.doc_date);
   const [title, setTitle] = useState(doc.title ?? '');
   const [details, setDetails] = useState<DetailsValue>(() => detailsOf(doc));
+  const [isPrivate, setIsPrivate] = useState(doc.private);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -310,6 +311,7 @@ function EditSheet({
     setDate(doc.doc_date);
     setTitle(doc.title ?? '');
     setDetails(detailsOf(doc));
+    setIsPrivate(doc.private);
     setError(null);
   };
 
@@ -341,6 +343,7 @@ function EditSheet({
       doctor: details.doctor.trim() || null,
       specialty: details.specialty.trim() || null,
       hospital: details.hospital.trim() || null,
+      private: isPrivate,
     };
     try {
       await updateDocument(doc.id, patch);
@@ -453,6 +456,8 @@ function EditSheet({
           </Section>
 
           <DocDetailsFields value={details} onChange={setDetails} editable={!busy} />
+
+          <PrivateSwitch value={isPrivate} onChange={setIsPrivate} editable={!busy} />
 
           {(error || (dateError && date.length >= 10)) && (
             <Text color="danger" accessibilityRole="alert" style={{ paddingHorizontal: Spacing.three }}>

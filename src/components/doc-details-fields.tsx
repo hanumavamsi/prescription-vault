@@ -1,6 +1,6 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Switch, View } from 'react-native';
 
-import { Chip, Field, Section } from '@/components/ui';
+import { Chip, Field, Row, Section } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { knownSpecialty, SPECIALTIES } from '@/lib/search';
@@ -82,6 +82,46 @@ export function DocDetailsFields({
         autoCapitalize="words"
         returnKeyType="done"
         editable={editable}
+      />
+    </Section>
+  );
+}
+
+/** "Only me" switch, shared by the add screen and the edit sheet. */
+export function PrivateSwitch({
+  value,
+  onChange,
+  editable = true,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+  editable?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <Section
+      title="Who can see this"
+      footer={
+        value
+          ? "Only you. Family you share your records with won't see this document. Copies they already saved can't be taken back."
+          : 'You and family you share your records with.'
+      }>
+      <Row
+        title="Only me"
+        icon="lock"
+        last
+        right={
+          <Switch
+            value={value}
+            onValueChange={onChange}
+            disabled={!editable}
+            trackColor={{ true: theme.tint, false: theme.backgroundSelected }}
+            thumbColor={theme.backgroundElement}
+            ios_backgroundColor={theme.backgroundSelected}
+            accessibilityLabel="Only me"
+            accessibilityHint="Hides this document from family you share your records with"
+          />
+        }
       />
     </Section>
   );

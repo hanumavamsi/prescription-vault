@@ -21,4 +21,9 @@ describe('<DocRow />', () => {
     expect(onPress).toHaveBeenCalled();
     expect(screen.getByText(`${formatDate('2026-11-04')} · 1 page`)).toBeTruthy();
   });
+
+  it('marks "Only me" documents', async () => {
+    await render(<DocRow doc={doc({ private: true })} onPress={() => {}} />);
+    expect(screen.getByText(`Only me · ${formatDate('2026-11-04')} · 1 page`)).toBeTruthy();
+  });
 });
