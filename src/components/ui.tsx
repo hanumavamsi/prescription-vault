@@ -479,10 +479,10 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 
 // ------------------------------------------------------------------ helpers
 
+/** "03/11/2026" (dd/mm/yyyy) from a plain YYYY-MM-DD, read as text so there is no timezone shift. */
 export function formatDate(iso: string) {
-  // doc_date is a plain YYYY-MM-DD; parse as local date to avoid timezone shifts.
-  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
 }
 
 export function todayISO() {

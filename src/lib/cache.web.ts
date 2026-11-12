@@ -1,15 +1,11 @@
 /**
- * Web version of cache.ts. Browsers get no offline page cache: pages are shown straight from
- * short-lived signed URLs, memoized for this tab session so swiping back and forth doesn't
- * re-sign every page. Nothing is written to browser storage.
+ * Web version of cache.ts. Pages are downloaded with the user's session and shown from in-memory
+ * blob: URLs. A blob: URL only works inside this tab, so a copied link opens nothing elsewhere
+ * (a signed storage URL would work for anyone who has it). Nothing is written to browser storage.
  */
-import { signedPageUrl } from '@/lib/api';
+import { downloadPage } from '@/lib/api';
 import { clearPreparedShares } from '@/lib/share';
 import type { DocumentPage } from '@/lib/types';
-
-/** Signed URLs live for an hour; reuse them for 50 minutes so a page never loads an expired one. */
-const URL_TTL_SECONDS = 3600;
-const REUSE_MS = 50 * 60 * 1000;
 
 /** Thrown when a page cannot be loaded (usually offline). */
 export class PageUnavailableError extends Error {
@@ -20,29 +16,46 @@ export class PageUnavailableError extends Error {
   }
 }
 
-const memo = new Map<string, { url: string; until: number }>();
-/** Bumped by clearCache so in-flight requests don't repopulate the memo after sign-out. */
+/** Keeps the last few pages so swiping back and forth doesn't re-download; older ones are freed.
+ * shortcut: a doc with more than MAX_PAGES pages can't share an evicted page until it is re-shown; raise if that bites. */
+const MAX_PAGES = 20;
+const memo = new Map<string, string>();
+/** Bumped by clearCache so in-flight downloads don't repopulate the memo after sign-out. */
 let generation = 0;
 
-/** URL for a page. Throws PageUnavailableError when it cannot be signed (usually offline). */
+/** blob: URL for a page. Throws PageUnavailableError when it cannot be downloaded (usually offline). */
 export async function getCachedPageUri(page: DocumentPage): Promise<string> {
   const hit = memo.get(page.storage_path);
-  if (hit && hit.until > Date.now()) return hit.url;
+  if (hit) {
+    // Re-insert so the map stays in least-recently-used order.
+    memo.delete(page.storage_path);
+    memo.set(page.storage_path, hit);
+    return hit;
+  }
   const gen = generation;
-  let url: string;
+  let blob: Blob;
   try {
-    url = await signedPageUrl(page.storage_path, URL_TTL_SECONDS);
+    blob = await downloadPage(page.storage_path);
   } catch (e) {
     throw new PageUnavailableError(e);
   }
   if (gen !== generation) throw new PageUnavailableError();
-  memo.set(page.storage_path, { url, until: Date.now() + REUSE_MS });
+  const existing = memo.get(page.storage_path);
+  if (existing) return existing; // a parallel call for the same page finished first
+  const url = URL.createObjectURL(blob.type ? blob : new Blob([blob], { type: page.mime }));
+  memo.set(page.storage_path, url);
+  while (memo.size > MAX_PAGES) {
+    const [oldest, old] = memo.entries().next().value as [string, string];
+    memo.delete(oldest);
+    URL.revokeObjectURL(old);
+  }
   return url;
 }
 
-/** Forgets every page URL and any page files fetched for sharing. Called on sign-out and from Settings. */
+/** Frees every page and any page files fetched for sharing. Called on sign-out and from Settings. */
 export async function clearCache(): Promise<void> {
   generation += 1;
+  for (const url of memo.values()) URL.revokeObjectURL(url);
   memo.clear();
   clearPreparedShares();
 }

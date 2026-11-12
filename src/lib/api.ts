@@ -190,6 +190,13 @@ export async function signedPageUrl(storagePath: string, expiresIn = 300): Promi
   return data.signedUrl;
 }
 
+/** Downloads a page with the signed-in user's session (storage RLS applies). Nothing shareable is created. */
+export async function downloadPage(storagePath: string): Promise<Blob> {
+  const { data, error } = await supabase.storage.from(BUCKET).download(storagePath);
+  if (error || !data) throw new Error(error?.message ?? 'Could not load file');
+  return data;
+}
+
 // ------------------------------------------------------------------ family / invites
 
 export function inviteUrl(token: string) {
