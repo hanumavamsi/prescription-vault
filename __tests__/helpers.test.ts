@@ -35,7 +35,7 @@ describe('doc filters', () => {
 
 describe('dates', () => {
   it('formatDate parses YYYY-MM-DD as a local date (no timezone shift)', () => {
-    const expected = new Date(2026, 0, 1).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    const expected = '01/01/2026';
     expect(formatDate('2026-01-01')).toBe(expected);
     expect(formatDate('2026-01-01T23:59:59Z')).toBe(expected);
   });

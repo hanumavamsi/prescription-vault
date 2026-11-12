@@ -1,5 +1,5 @@
 /**
- * Web version of page-view.tsx. Renders one document page from its signed URL.
+ * Web version of page-view.tsx. Renders one document page from its in-memory blob: URL (see cache.web.ts).
  * Images: expo-image, contained; click/tap opens the full-size image in a new tab for zooming.
  * PDFs: the browser's own PDF viewer in an <iframe>, with an "Open PDF" button because
  * iPhone Safari shows only the first page of a PDF inside a frame.

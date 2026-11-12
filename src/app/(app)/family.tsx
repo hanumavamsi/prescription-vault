@@ -6,6 +6,7 @@ import {
   Avatar,
   Button,
   ErrorState,
+  formatDate,
   Loading,
   Row,
   Screen,
@@ -26,9 +27,9 @@ const canWebShare = Platform.OS === 'web' && typeof navigator !== 'undefined' &&
 /** `since` is a UTC timestamp; show the local calendar date (formatDate is for plain YYYY-MM-DD). */
 function formatTimestamp(ts: string) {
   const d = new Date(ts);
-  return Number.isNaN(d.getTime())
-    ? ''
-    : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return formatDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
 }
 
 async function loadFamily() {
