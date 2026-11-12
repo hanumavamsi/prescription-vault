@@ -18,6 +18,16 @@ In most Indian families, prescriptions and lab reports live in a plastic folder,
 - **Share safely**: a relative can see your records only after you approve, read-only, and you can revoke it any time.
 - **Your data stays yours**: stored in India (Mumbai), delete everything in one tap.
 
+## Install on iPhone
+
+No App Store needed. Open [rx-vault.expo.app](https://rx-vault.expo.app) in Safari, then:
+
+| 1. Tap **⋯** → **Share** | 2. **Add to Home Screen** | 3. Open **Rx Vault** like any app |
+|:---:|:---:|:---:|
+| <img src="docs/install-1.jpg" width="200" alt="Safari menu with Share"> | <img src="docs/install-2.jpg" width="200" alt="Share sheet with Add to Home Screen"> | <img src="docs/install-3.jpg" width="200" alt="Rx Vault icon on the iPhone home screen"> |
+
+On Android Chrome: menu **⋮** → **Add to Home screen**.
+
 <p align="center"><img src="docs/screens.png" width="720" alt="Home with family switcher, search results, and a prescription open in the viewer"></p>
 
 <sub>Screenshots use a fictional family and made-up documents.</sub>
