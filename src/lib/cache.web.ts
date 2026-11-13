@@ -1,9 +1,12 @@
 /**
  * Web version of cache.ts. Pages are downloaded with the user's session and shown from in-memory
  * blob: URLs. A blob: URL only works inside this tab, so a copied link opens nothing elsewhere
- * (a signed storage URL would work for anyone who has it). Nothing is written to browser storage.
+ * (a signed storage URL would work for anyone who has it). Nothing is written to browser storage here;
+ * documents saved only on this phone (local-docs.web.ts) are read from it and never cleared by clearCache.
  */
 import { downloadPage } from '@/lib/api';
+import { isLocalId } from '@/lib/local-doc-meta';
+import { getLocalPage } from '@/lib/local-docs';
 import { clearPreparedShares } from '@/lib/share';
 import type { DocumentPage } from '@/lib/types';
 
@@ -35,7 +38,8 @@ export async function getCachedPageUri(page: DocumentPage): Promise<string> {
   const gen = generation;
   let blob: Blob;
   try {
-    blob = await downloadPage(page.storage_path);
+    // Pages saved only on this phone come from IndexedDB (local-docs.web.ts), not the cloud.
+    blob = isLocalId(page.document_id) ? await getLocalPage(page) : await downloadPage(page.storage_path);
   } catch (e) {
     throw new PageUnavailableError(e);
   }

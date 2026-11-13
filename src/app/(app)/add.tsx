@@ -24,9 +24,10 @@ import {
 import { HitSize, Radius, Spacing } from '@/constants/theme';
 import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
-import { createDocument, listProfiles } from '@/lib/api';
+import { createDocument, listProfiles, QuotaExceededError } from '@/lib/api';
 import { discardLocalFiles } from '@/lib/bytes';
 import { confirm } from '@/lib/confirm';
+import { localDocsSupported, saveLocalDocument } from '@/lib/local-docs';
 import { openSystemSettings, pickPdf, pickPhotos, scanDocument, ScanError } from '@/lib/scan';
 import type { DocType, LocalPage } from '@/lib/types';
 
@@ -208,11 +209,32 @@ export default function AddDocumentScreen() {
     setSaving(true);
     setError(null);
     setProgress({ done: 0, total: pages.length });
+    const input = { profileId, type, docDate: date, title: title.trim() || undefined, ...details, pages };
     try {
-      await createDocument(
-        { profileId, type, docDate: date, title: title.trim() || undefined, ...details, private: isPrivate, pages },
-        (d, total) => setProgress({ done: d, total }),
-      );
+      try {
+        await createDocument({ ...input, private: isPrivate }, (d, total) => setProgress({ done: d, total }));
+      } catch (e) {
+        if (!(e instanceof QuotaExceededError) || !localDocsSupported) throw e;
+        const mb = (n: number) => Math.round(n / (1024 * 1024));
+        const onPhone = await confirm({
+          title: 'Cloud storage full',
+          message: `You've used ${mb(e.used)} of ${mb(e.quota)} MB. Save this document on this phone instead? It will only be on this device and browser, isn't backed up or shared with family, and iPhone may delete it if you don't open Rx Vault for a while (adding it to the Home Screen helps).`,
+          confirmText: 'Save on this phone',
+          cancelText: 'Cancel',
+        });
+        const localError = onPhone
+          ? await saveLocalDocument(input).then(
+              () => null,
+              (le: unknown) => (le instanceof Error ? le.message : String(le)),
+            )
+          : null;
+        if (!onPhone || localError) {
+          setSaving(false);
+          setProgress(null);
+          if (localError) setError(`Could not save on this phone: ${localError}`);
+          return;
+        }
+      }
       deleteLocalPages(pages);
       setSaving(false);
       setDone(true);

@@ -36,6 +36,7 @@ import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteDocument, getDocument, getProfile, updateDocument } from '@/lib/api';
 import { getCachedPageUri } from '@/lib/cache';
+import { isLocalId } from '@/lib/local-doc-meta';
 import { confirm, showMessage } from '@/lib/confirm';
 import {
   canSharePdf,
@@ -355,10 +356,14 @@ function EditSheet({
     }
   };
 
+  const local = isLocalId(doc.id);
+
   const confirmDelete = async () => {
     const ok = await confirm({
       title: 'Delete this document?',
-      message: 'All its pages will be permanently deleted for everyone who can see them. This cannot be undone.',
+      message: local
+        ? 'It is saved only on this phone, so all its pages will be gone for good. This cannot be undone.'
+        : 'All its pages will be permanently deleted for everyone who can see them. This cannot be undone.',
       confirmText: 'Delete',
       destructive: true,
     });
@@ -457,7 +462,8 @@ function EditSheet({
 
           <DocDetailsFields value={details} onChange={setDetails} editable={!busy} />
 
-          <PrivateSwitch value={isPrivate} onChange={setIsPrivate} editable={!busy} />
+          {/* Documents on this phone are never shared with family, so "Only me" doesn't apply. */}
+          {!local && <PrivateSwitch value={isPrivate} onChange={setIsPrivate} editable={!busy} />}
 
           {(error || (dateError && date.length >= 10)) && (
             <Text color="danger" accessibilityRole="alert" style={{ paddingHorizontal: Spacing.three }}>
