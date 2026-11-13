@@ -156,6 +156,7 @@ export async function createDocument(
   );
 
   const uploaded: string[] = [];
+  let sizeBytes = 0;
   try {
     for (let i = 0; i < input.pages.length; i++) {
       const page = input.pages[i];
@@ -166,6 +167,7 @@ export async function createDocument(
       const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, { contentType: page.mime });
       if (error) throw new Error(error.message);
       uploaded.push(path);
+      sizeBytes += bytes.byteLength;
       must(
         await supabase.from('document_pages').insert({
           document_id: doc.id,
@@ -182,7 +184,7 @@ export async function createDocument(
     await supabase.from('documents').delete().eq('id', doc.id);
     throw e;
   }
-  return { ...doc, page_count: input.pages.length };
+  return { ...doc, page_count: input.pages.length, size_bytes: sizeBytes };
 }
 
 /** Short-lived signed URL for a page. Use src/lib/cache.ts for display. */

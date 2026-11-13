@@ -1,7 +1,7 @@
 -- Access-model tests. Run: npx supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(33);
 
 -- Waitlist caps are covered in waitlist.test.sql; here everyone gets in.
 update signup_limits set direct_cap = 1000000, total_cap = 1000000;
@@ -95,8 +95,8 @@ reset role;
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
 insert into documents (profile_id, type, title, private, created_by)
   select id, 'report', 'B secret', true, auth.uid() from profiles where user_id = auth.uid();
-insert into document_pages (document_id, page_no, storage_path, mime)
-  select id, 1, profile_id || '/' || id || '/1.jpg', 'image/jpeg' from documents where title in ('B blood test', 'B secret');
+insert into document_pages (document_id, page_no, storage_path, mime, size_bytes)
+  select id, 1, profile_id || '/' || id || '/1.jpg', 'image/jpeg', 1000 from documents where title in ('B blood test', 'B secret');
 select is((select count(*)::int from documents where title = 'B secret'), 1, 'owner sees own private doc');
 reset role;
 insert into storage.objects (bucket_id, name) select 'documents', storage_path from document_pages;
@@ -113,6 +113,14 @@ select is((select count(*)::int from storage.objects where name = (select storag
 select is((select count(*)::int from storage.objects where name = (select storage_path from t_paths where title = 'B blood test')), 1, 'viewer reads shared file');
 update documents set private = true where title = 'B blood test';
 select is((select count(*)::int from documents where title = 'B blood test'), 1, 'viewer cannot make a shared doc private');
+
+-- ---- documents.size_bytes is the server-kept sum of page sizes
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+insert into document_pages (document_id, page_no, storage_path, mime, size_bytes)
+  select id, 2, profile_id || '/' || id || '/2.jpg', 'image/jpeg', 500 from documents where title = 'B secret';
+select is((select size_bytes from documents where title = 'B secret'), 1500::bigint, 'size_bytes is the sum of page sizes');
+select throws_ok($$update documents set size_bytes = 1 where title = 'B secret'$$, '42501', null, 'owner cannot set size_bytes');
 
 -- ---- C (stranger) sees nothing
 reset role;

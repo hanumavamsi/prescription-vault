@@ -11,6 +11,7 @@ export function doc(over: Partial<Document> = {}): Document {
     specialty: null,
     hospital: null,
     page_count: 1,
+    size_bytes: 0,
     private: false,
     created_by: 'u1',
     created_at: '2026-11-04T10:00:00Z',
