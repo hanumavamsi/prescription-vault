@@ -25,6 +25,8 @@ export type Document = {
   /** Hospital, clinic or lab. */
   hospital: string | null;
   page_count: number;
+  /** Sum of page upload sizes; 0 when unknown. */
+  size_bytes: number;
   /** "Only me": hidden from people the owner shares records with. */
   private: boolean;
   created_by: string | null;

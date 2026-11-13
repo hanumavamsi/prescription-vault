@@ -485,6 +485,13 @@ export function formatDate(iso: string) {
   return `${d}/${m}/${y}`;
 }
 
+/** "820 KB", "2.4 MB" (decimal units, as phones show file sizes). */
+export function formatBytes(n: number) {
+  if (n < 1000) return `${n} B`;
+  if (n < 999_500) return `${Math.round(n / 1e3)} KB`;
+  return `${(n / 1e6).toFixed(1)} MB`;
+}
+
 export function todayISO() {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');

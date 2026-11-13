@@ -1,5 +1,5 @@
 import { applyDocFilter, isFiltered } from '@/components/doc-filters';
-import { formatDate, todayISO } from '@/components/ui';
+import { formatBytes, formatDate, todayISO } from '@/components/ui';
 import { entryBundle } from '@/components/update-banner';
 import { pdfFileName, shareFileName } from '@/lib/share';
 
@@ -20,6 +20,15 @@ describe('shareFileName / pdfFileName', () => {
   it('falls back to "Document" and caps the length', () => {
     expect(pdfFileName('...')).toBe('Document.pdf');
     expect(pdfFileName('x'.repeat(100))).toBe(`${'x'.repeat(60)}.pdf`);
+  });
+});
+
+describe('formatBytes', () => {
+  it('uses B, KB and MB', () => {
+    expect(formatBytes(512)).toBe('512 B');
+    expect(formatBytes(820_000)).toBe('820 KB');
+    expect(formatBytes(999_600)).toBe('1.0 MB');
+    expect(formatBytes(2_400_000)).toBe('2.4 MB');
   });
 });
 

@@ -1,4 +1,4 @@
-import { Row, docTypeIcon, docTypeLabel, formatDate } from '@/components/ui';
+import { Row, docTypeIcon, docTypeLabel, formatBytes, formatDate } from '@/components/ui';
 import type { Document } from '@/lib/types';
 
 /** One document in a grouped list. */
@@ -12,6 +12,7 @@ export function DocRow({ doc, onPress, last }: { doc: Document; onPress: () => v
     doc.doctor?.trim(),
     formatDate(doc.doc_date),
     doc.page_count > 0 ? pages : null,
+    doc.size_bytes > 0 ? formatBytes(doc.size_bytes) : null,
   ]
     .filter(Boolean)
     .join(' · ');
