@@ -23,6 +23,15 @@ describe('shareFileName / pdfFileName', () => {
   });
 });
 
+describe('formatBytes', () => {
+  it('uses B, KB and MB', () => {
+    expect(formatBytes(512)).toBe('512 B');
+    expect(formatBytes(820_000)).toBe('820 KB');
+    expect(formatBytes(999_600)).toBe('1.0 MB');
+    expect(formatBytes(2_400_000)).toBe('2.4 MB');
+  });
+});
+
 describe('doc filters', () => {
   const docs = [doc({ id: 'rx' }), doc({ id: 'lab', type: 'report' })];
   it('filters by type, "all" keeps everything', () => {
