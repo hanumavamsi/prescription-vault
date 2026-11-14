@@ -5,6 +5,13 @@
 import * as Crypto from 'expo-crypto';
 
 import { readBytes } from '@/lib/bytes';
+import { isLocalId, mergeDocs } from '@/lib/local-doc-meta';
+import {
+  deleteLocalDocument,
+  getLocalDocument,
+  listLocalDocuments,
+  updateLocalDocument,
+} from '@/lib/local-docs';
 import { inviteBaseUrl } from '@/lib/runtime';
 import { supabase } from '@/lib/supabase';
 import type {
@@ -91,6 +98,7 @@ export async function updateProfile(id: string, patch: { display_name?: string; 
 export async function deleteManagedProfile(id: string) {
   const docs = must(await supabase.from('documents').select('id').eq('profile_id', id));
   for (const d of docs) await deleteDocument(d.id);
+  for (const d of await listLocalDocuments(id).catch(() => [])) await deleteLocalDocument(d.id);
   must(await supabase.from('profiles').delete().eq('id', id));
 }
 
@@ -104,10 +112,15 @@ export async function listDocuments(profileId: string, type?: DocType): Promise<
     .order('doc_date', { ascending: false })
     .order('created_at', { ascending: false });
   if (type) q = q.eq('type', type);
-  return must(await q);
+  // Documents saved only on this phone (web) are listed with the cloud ones.
+  const [cloud, local] = await Promise.all([q.then(must<Document[]>), // A blocked IndexedDB (private browsing) must not hide the cloud documents.
+    listLocalDocuments(profileId, type).catch(() => []),
+  ]);
+  return mergeDocs(cloud, local);
 }
 
 export async function getDocument(id: string): Promise<{ doc: Document; pages: DocumentPage[] }> {
+  if (isLocalId(id)) return getLocalDocument(id);
   const [doc, pages] = await Promise.all([
     supabase.from('documents').select('*').eq('id', id).single().then(must<Document>),
     supabase.from('document_pages').select('*').eq('document_id', id).order('page_no').then(must<DocumentPage[]>),
@@ -116,10 +129,12 @@ export async function getDocument(id: string): Promise<{ doc: Document; pages: D
 }
 
 export async function updateDocument(id: string, patch: Partial<DocDetails>) {
+  if (isLocalId(id)) return updateLocalDocument(id, patch);
   must(await supabase.from('documents').update(patch).eq('id', id));
 }
 
 export async function deleteDocument(id: string) {
+  if (isLocalId(id)) return deleteLocalDocument(id);
   const pages = must(await supabase.from('document_pages').select('storage_path').eq('document_id', id));
   if (pages.length) {
     const { error } = await supabase.storage.from(BUCKET).remove(pages.map((p) => p.storage_path));
