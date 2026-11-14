@@ -2,22 +2,17 @@ import Constants from 'expo-constants';
 import { useCallback, useEffect, useState } from 'react';
 import { Switch, StyleSheet, View } from 'react-native';
 
-import { Button, ErrorState, Field, Icon, Loading, Row, Screen, Section, Text } from '@/components/ui';
+import { Button, ErrorState, Field, formatBytes, Icon, Loading, Row, Screen, Section, Text } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
 import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
-import { deleteAccount, listProfiles, updateProfile } from '@/lib/api';
+import { deleteAccount, getStorageUsage, listProfiles, updateProfile } from '@/lib/api';
 import { useAppLock } from '@/lib/app-lock';
 import { useAuth } from '@/lib/auth';
 import { cacheSizeBytes, clearCache } from '@/lib/cache';
 import { confirm } from '@/lib/confirm';
 import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL, openLink } from '@/lib/links';
 import { isWeb } from '@/lib/runtime';
-
-function formatBytes(n: number) {
-  if (n < 1024 * 1024) return `${Math.max(0, Math.round(n / 1024))} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 /** Destructive confirmation (Alert on native, the browser dialog on web). */
 function confirmDestructive(title: string, message: string, action: string, onConfirm: () => void) {
@@ -50,6 +45,7 @@ export default function SettingsScreen() {
         onSaved={profiles.refresh}
       />
       {!isWeb && <LockSection />}
+      <CloudStorageSection />
       <StorageSection />
       <AboutSection />
       <Section>
@@ -174,6 +170,31 @@ function LockSection() {
           />
         }
       />
+    </Section>
+  );
+}
+
+// ------------------------------------------------------------------ cloud storage
+
+function CloudStorageSection() {
+  const theme = useTheme();
+  const usage = useQuery(getStorageUsage);
+  if (!usage.data) return null;
+  const { used, quota } = usage.data;
+  const label = `${formatBytes(used)} of ${formatBytes(quota)} used`;
+  return (
+    <Section title="Cloud storage" footer="Counts files in your records and the profiles you manage.">
+      <View style={styles.usage} accessible accessibilityLabel={`Cloud storage: ${label}`}>
+        <Text>{label}</Text>
+        <View style={[styles.bar, { backgroundColor: theme.backgroundSelected }]}>
+          <View
+            style={[
+              styles.barFill,
+              { width: `${Math.min(100, (used / quota) * 100)}%`, backgroundColor: used >= quota ? theme.danger : theme.tint },
+            ]}
+          />
+        </View>
+      </View>
     </Section>
   );
 }
@@ -329,6 +350,9 @@ function DeleteAccountSection() {
 
 const styles = StyleSheet.create({
   block: { gap: Spacing.three },
+  usage: { padding: Spacing.three, gap: Spacing.two },
+  bar: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  barFill: { height: '100%' },
   danger: { borderRadius: Radius.medium, padding: Spacing.three, gap: Spacing.three },
   dangerHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
 });

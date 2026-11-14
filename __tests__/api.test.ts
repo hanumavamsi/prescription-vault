@@ -101,6 +101,11 @@ describe('createDocument', () => {
     ],
   };
 
+  const rpc = supabase.rpc as jest.Mock;
+  const usage = (used: number) =>
+    rpc.mockImplementation(async (fn: string) => ({ data: fn === 'storage_quota_bytes' ? 100 : used, error: null }));
+  beforeEach(() => usage(0));
+
   function dbWithDoc() {
     mockDb.mockImplementation((q) =>
       q.table === 'documents' && has(q, 'insert') ? { data: { id: 'doc1', page_count: 0 }, error: null } : { data: null, error: null },
@@ -148,6 +153,33 @@ describe('createDocument', () => {
 
     await expect(api.createDocument(input)).rejects.toThrow('Page 1 is larger than 10 MB');
     expect(mockStorage.upload).not.toHaveBeenCalled();
+    expect(mockDb.mock.calls.some(([q]) => q.table === 'documents' && has(q, 'delete'))).toBe(true);
+  });
+});
+
+describe('createDocument quota', () => {
+  const rpc = supabase.rpc as jest.Mock;
+  const input = { profileId: 'p1', type: 'report' as const, docDate: '2026-11-04', pages: [{ uri: 'file://1.jpg', mime: 'image/jpeg' as const }] };
+
+  it('refuses up front when storage is full, before creating the document', async () => {
+    rpc.mockResolvedValue({ data: 100, error: null });
+    const err = await api.createDocument(input).catch((e) => e);
+    expect(err).toBeInstanceOf(api.QuotaExceededError);
+    expect(err).toMatchObject({ used: 100, quota: 100 });
+    expect(mockDb).not.toHaveBeenCalled();
+  });
+
+  it('maps a storage RLS rejection to QuotaExceededError when now over quota', async () => {
+    rpc
+      .mockResolvedValueOnce({ data: 50, error: null }) // up-front used
+      .mockResolvedValueOnce({ data: 100, error: null }) // up-front quota
+      .mockResolvedValueOnce({ data: 120, error: null }) // re-check used
+      .mockResolvedValueOnce({ data: 100, error: null }); // re-check quota
+    mockDb.mockImplementation((q) =>
+      q.table === 'documents' && has(q, 'insert') ? { data: { id: 'doc1', page_count: 0 }, error: null } : { data: null, error: null },
+    );
+    mockStorage.upload.mockResolvedValueOnce({ error: { message: 'new row violates row-level security policy' } });
+    await expect(api.createDocument(input)).rejects.toBeInstanceOf(api.QuotaExceededError);
     expect(mockDb.mock.calls.some(([q]) => q.table === 'documents' && has(q, 'delete'))).toBe(true);
   });
 });

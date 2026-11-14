@@ -29,15 +29,14 @@ import type {
 const BUCKET = 'documents';
 export const MAX_PAGE_BYTES = 10 * 1024 * 1024;
 
-/** Thrown by createDocument, before uploading, when the account's cloud storage is full. Sizes in bytes. */
+/** Cloud storage for this account (own + managed profiles) is at or over its quota. */
 export class QuotaExceededError extends Error {
-  used: number;
-  quota: number;
-  constructor(used: number, quota: number) {
-    super('Cloud storage is full');
+  constructor(
+    public used: number,
+    public quota: number,
+  ) {
+    super('Cloud storage full');
     this.name = 'QuotaExceededError';
-    this.used = used;
-    this.quota = quota;
   }
 }
 
@@ -99,7 +98,7 @@ export async function updateProfile(id: string, patch: { display_name?: string; 
 export async function deleteManagedProfile(id: string) {
   const docs = must(await supabase.from('documents').select('id').eq('profile_id', id));
   for (const d of docs) await deleteDocument(d.id);
-  for (const d of await listLocalDocuments(id)) await deleteLocalDocument(d.id);
+  for (const d of await listLocalDocuments(id).catch(() => [])) await deleteLocalDocument(d.id);
   must(await supabase.from('profiles').delete().eq('id', id));
 }
 
@@ -114,7 +113,9 @@ export async function listDocuments(profileId: string, type?: DocType): Promise<
     .order('created_at', { ascending: false });
   if (type) q = q.eq('type', type);
   // Documents saved only on this phone (web) are listed with the cloud ones.
-  const [cloud, local] = await Promise.all([q.then(must<Document[]>), listLocalDocuments(profileId, type)]);
+  const [cloud, local] = await Promise.all([q.then(must<Document[]>), // A blocked IndexedDB (private browsing) must not hide the cloud documents.
+    listLocalDocuments(profileId, type).catch(() => []),
+  ]);
   return mergeDocs(cloud, local);
 }
 
@@ -162,6 +163,8 @@ export async function createDocument(
 ): Promise<Document> {
   if (!input.pages.length) throw new Error('Add at least one page');
   const uid = await currentUserId();
+  const usage = await getStorageUsage();
+  if (usage.used >= usage.quota) throw new QuotaExceededError(usage.used, usage.quota);
   const doc = must<Document>(
     await supabase
       .from('documents')
@@ -181,6 +184,7 @@ export async function createDocument(
   );
 
   const uploaded: string[] = [];
+  let sizeBytes = 0;
   try {
     for (let i = 0; i < input.pages.length; i++) {
       const page = input.pages[i];
@@ -189,8 +193,16 @@ export async function createDocument(
       const ext = page.mime === 'application/pdf' ? 'pdf' : page.mime === 'image/png' ? 'png' : 'jpg';
       const path = `${input.profileId}/${doc.id}/${i + 1}-${Crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, { contentType: page.mime });
-      if (error) throw new Error(error.message);
+      if (error) {
+        // The storage policy refuses uploads at quota (see the storage_quota migration); RLS errors have other causes too.
+        if (/row-level security/i.test(error.message)) {
+          const now = await getStorageUsage().catch(() => null);
+          if (now && now.used >= now.quota) throw new QuotaExceededError(now.used, now.quota);
+        }
+        throw new Error(error.message);
+      }
       uploaded.push(path);
+      sizeBytes += bytes.byteLength;
       must(
         await supabase.from('document_pages').insert({
           document_id: doc.id,
@@ -207,7 +219,7 @@ export async function createDocument(
     await supabase.from('documents').delete().eq('id', doc.id);
     throw e;
   }
-  return { ...doc, page_count: input.pages.length };
+  return { ...doc, page_count: input.pages.length, size_bytes: sizeBytes };
 }
 
 /** Short-lived signed URL for a page. Use src/lib/cache.ts for display. */
@@ -276,6 +288,15 @@ export async function leaveSharedProfile(profileId: string) {
 /** False while the account is on the beta waitlist (see the waitlist migration). */
 export async function isApproved(): Promise<boolean> {
   return must<boolean>(await supabase.rpc('is_approved'));
+}
+
+/** Bytes of cloud storage used by my own and managed profiles, and the account quota. */
+export async function getStorageUsage(): Promise<{ used: number; quota: number }> {
+  const [used, quota] = await Promise.all([
+    supabase.rpc('storage_used_bytes').then(must<number>),
+    supabase.rpc('storage_quota_bytes').then(must<number>),
+  ]);
+  return { used: Number(used), quota: Number(quota) };
 }
 
 export async function deleteAccount() {

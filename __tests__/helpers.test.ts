@@ -1,5 +1,5 @@
 import { applyDocFilter, isFiltered } from '@/components/doc-filters';
-import { formatDate, todayISO } from '@/components/ui';
+import { formatBytes, formatDate, todayISO } from '@/components/ui';
 import { entryBundle } from '@/components/update-banner';
 import { pdfFileName, shareFileName } from '@/lib/share';
 
@@ -44,6 +44,15 @@ describe('dates', () => {
     jest.useFakeTimers().setSystemTime(new Date(2026, 2, 5, 23, 30));
     expect(todayISO()).toBe('2026-03-05');
     jest.useRealTimers();
+  });
+});
+
+describe('formatBytes', () => {
+  it('shows KB under 1 MB, MB with one decimal above', () => {
+    expect(formatBytes(0)).toBe('0 KB');
+    expect(formatBytes(820 * 1024)).toBe('820 KB');
+    expect(formatBytes(12.3 * 1024 * 1024)).toBe('12.3 MB');
+    expect(formatBytes(100 * 1024 * 1024)).toBe('100 MB');
   });
 });
 

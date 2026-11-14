@@ -32,6 +32,7 @@ describe('local document metadata', () => {
       specialty: null,
       hospital: 'City Lab',
       page_count: 2,
+      size_bytes: 300,
       private: false,
       created_by: 'u1',
       created_at: '2026-11-05T09:00:00Z',

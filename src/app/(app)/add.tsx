@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { DocDetailsFields, PrivateSwitch, type DetailsValue } from '@/components/doc-details-fields';
 import { WebCamera, webCameraSupported } from '@/components/web-camera';
@@ -18,6 +18,7 @@ import {
   Section,
   Segmented,
   Text,
+  formatBytes,
   todayISO,
   type IconName,
 } from '@/components/ui';
@@ -26,7 +27,7 @@ import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
 import { createDocument, listProfiles, QuotaExceededError } from '@/lib/api';
 import { discardLocalFiles } from '@/lib/bytes';
-import { confirm } from '@/lib/confirm';
+import { confirm, showMessage } from '@/lib/confirm';
 import { localDocsSupported, saveLocalDocument } from '@/lib/local-docs';
 import { openSystemSettings, pickPdf, pickPhotos, scanDocument, ScanError } from '@/lib/scan';
 import type { DocType, LocalPage } from '@/lib/types';
@@ -75,6 +76,8 @@ export default function AddDocumentScreen() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  /** Cloud is full: asking whether to save on this phone; resolve answers the dialog. */
+  const [quotaAsk, setQuotaAsk] = useState<{ used: number; quota: number; resolve: (ok: boolean) => void } | null>(null);
   /** Web: the live camera is open for shooting pages one after another. */
   const [cameraOpen, setCameraOpen] = useState(false);
   /** Web: the live camera failed once (blocked, missing); use the browser's one-shot camera instead. */
@@ -215,13 +218,9 @@ export default function AddDocumentScreen() {
         await createDocument({ ...input, private: isPrivate }, (d, total) => setProgress({ done: d, total }));
       } catch (e) {
         if (!(e instanceof QuotaExceededError) || !localDocsSupported) throw e;
-        const mb = (n: number) => Math.round(n / (1024 * 1024));
-        const onPhone = await confirm({
-          title: 'Cloud storage full',
-          message: `You've used ${mb(e.used)} of ${mb(e.quota)} MB. Save this document on this phone instead? It will only be on this device and browser, isn't backed up or shared with family, and iPhone may delete it if you don't open Rx Vault for a while (adding it to the Home Screen helps).`,
-          confirmText: 'Save on this phone',
-          cancelText: 'Cancel',
-        });
+        const { used, quota } = e;
+        const onPhone = await new Promise<boolean>((resolve) => setQuotaAsk({ used, quota, resolve }));
+        setQuotaAsk(null);
         const localError = onPhone
           ? await saveLocalDocument(input).then(
               () => null,
@@ -241,6 +240,13 @@ export default function AddDocumentScreen() {
     } catch (e) {
       setSaving(false);
       setProgress(null);
+      if (e instanceof QuotaExceededError) {
+        showMessage(
+          'Cloud storage full',
+          `You've used ${formatBytes(e.used)} of ${formatBytes(e.quota)}. Delete or shrink large documents to free space.`,
+        );
+        return;
+      }
       setError(
         e instanceof Error
           ? `Could not save: ${e.message}. Check your internet connection and try again.`
@@ -515,11 +521,38 @@ export default function AddDocumentScreen() {
         accessibilityHint="Uploads the pages and saves the document"
       />
       {saving && <ActivityIndicator color={theme.text} accessibilityLabel={progressLabel} />}
+      {quotaAsk && <QuotaDialog {...quotaAsk} />}
     </Screen>
   );
 }
 
 // ------------------------------------------------------------------ local components
+
+/** Cloud storage is full: offer to keep this document on this phone only. */
+function QuotaDialog({ used, quota, resolve }: { used: number; quota: number; resolve: (ok: boolean) => void }) {
+  const theme = useTheme();
+  return (
+    <Modal transparent animationType="fade" onRequestClose={() => resolve(false)}>
+      <View style={styles.dialogBackdrop}>
+        <View style={[styles.dialog, { backgroundColor: theme.background }]} accessibilityViewIsModal>
+          <Text variant="headline" accessibilityRole="header">
+            Cloud storage full
+          </Text>
+          <Text color="textSecondary">
+            You&apos;ve used {formatBytes(used)} of {formatBytes(quota)}, so this document can&apos;t be uploaded. Save it on
+            this phone instead?
+          </Text>
+          <Text variant="footnote" color="textSecondary">
+            It stays only in this browser on this device. It isn&apos;t backed up or shared with family, and iPhone may
+            delete it if you don&apos;t open Rx Vault for a few weeks (adding it to the Home Screen helps).
+          </Text>
+          <Button title="Save on this phone" onPress={() => resolve(true)} />
+          <Button title="Cancel" variant="secondary" onPress={() => resolve(false)} />
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 function HeaderButton({
   label,
@@ -656,6 +689,8 @@ function InlineError({ message }: { message: string }) {
 }
 
 const styles = StyleSheet.create({
+  dialogBackdrop: { flex: 1, justifyContent: 'center', padding: Spacing.four, backgroundColor: 'rgba(0,0,0,0.4)' },
+  dialog: { gap: Spacing.three, padding: Spacing.four, borderRadius: Radius.large, maxWidth: 420, width: '100%', alignSelf: 'center' },
   intro: { paddingHorizontal: Spacing.one },
   choices: { gap: Spacing.three },
   choice: {

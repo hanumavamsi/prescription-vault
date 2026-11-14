@@ -491,6 +491,12 @@ export function todayISO() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** "820 KB", "12.3 MB". */
+export function formatBytes(n: number) {
+  if (n < 1024 * 1024) return `${Math.max(0, Math.round(n / 1024))} KB`;
+  return `${Number((n / (1024 * 1024)).toFixed(1))} MB`;
+}
+
 export const docTypeLabel = { prescription: 'Prescription', report: 'Report' } as const;
 export const docTypeIcon = { prescription: 'pills', report: 'doc.text' } as const satisfies Record<string, IconName>;
 

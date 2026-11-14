@@ -42,6 +42,7 @@ export function metaToDocument(m: LocalDocMeta): Document {
     specialty: m.specialty,
     hospital: m.hospital,
     page_count: m.pages.length,
+    size_bytes: m.pages.reduce((n, p) => n + p.size, 0),
     private: false,
     created_by: m.user_id,
     created_at: m.created_at,

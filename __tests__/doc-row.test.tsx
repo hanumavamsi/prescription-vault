@@ -8,13 +8,13 @@ import { doc } from './fixtures';
 describe('<DocRow />', () => {
   it('shows the title with type, specialty, doctor, date and page count', async () => {
     await render(
-      <DocRow doc={doc({ title: 'BP check', specialty: 'Cardiology', doctor: 'Dr. Mehta', page_count: 3 })} onPress={() => {}} />,
+      <DocRow doc={doc({ title: 'BP check', specialty: 'Cardiology', doctor: 'Dr. Mehta', page_count: 3, size_bytes: 2.4 * 1024 * 1024 })} onPress={() => {}} />,
     );
     expect(screen.getByText('BP check')).toBeTruthy();
-    expect(screen.getByText(`Prescription · Cardiology · Dr. Mehta · ${formatDate('2026-11-04')} · 3 pages`)).toBeTruthy();
+    expect(screen.getByText(`Prescription · Cardiology · Dr. Mehta · ${formatDate('2026-11-04')} · 3 pages · 2.4 MB`)).toBeTruthy();
   });
 
-  it('falls back to the type when there is no title, and is tappable', async () => {
+  it('falls back to the type when there is no title, hides an unknown size, and is tappable', async () => {
     const onPress = jest.fn();
     await render(<DocRow doc={doc({ type: 'report', title: '  ', page_count: 1 })} onPress={onPress} />);
     fireEvent.press(screen.getByText('Report'));
