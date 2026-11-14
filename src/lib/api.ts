@@ -22,6 +22,17 @@ import type {
 const BUCKET = 'documents';
 export const MAX_PAGE_BYTES = 10 * 1024 * 1024;
 
+/** Cloud storage for this account (own + managed profiles) is at or over its quota. */
+export class QuotaExceededError extends Error {
+  constructor(
+    public used: number,
+    public quota: number,
+  ) {
+    super('Cloud storage full');
+    this.name = 'QuotaExceededError';
+  }
+}
+
 function must<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
   return res.data as T;
@@ -137,6 +148,8 @@ export async function createDocument(
 ): Promise<Document> {
   if (!input.pages.length) throw new Error('Add at least one page');
   const uid = await currentUserId();
+  const usage = await getStorageUsage();
+  if (usage.used >= usage.quota) throw new QuotaExceededError(usage.used, usage.quota);
   const doc = must<Document>(
     await supabase
       .from('documents')
@@ -165,7 +178,14 @@ export async function createDocument(
       const ext = page.mime === 'application/pdf' ? 'pdf' : page.mime === 'image/png' ? 'png' : 'jpg';
       const path = `${input.profileId}/${doc.id}/${i + 1}-${Crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, { contentType: page.mime });
-      if (error) throw new Error(error.message);
+      if (error) {
+        // The storage policy refuses uploads at quota (see the storage_quota migration); RLS errors have other causes too.
+        if (/row-level security/i.test(error.message)) {
+          const now = await getStorageUsage().catch(() => null);
+          if (now && now.used >= now.quota) throw new QuotaExceededError(now.used, now.quota);
+        }
+        throw new Error(error.message);
+      }
       uploaded.push(path);
       sizeBytes += bytes.byteLength;
       must(
@@ -253,6 +273,15 @@ export async function leaveSharedProfile(profileId: string) {
 /** False while the account is on the beta waitlist (see the waitlist migration). */
 export async function isApproved(): Promise<boolean> {
   return must<boolean>(await supabase.rpc('is_approved'));
+}
+
+/** Bytes of cloud storage used by my own and managed profiles, and the account quota. */
+export async function getStorageUsage(): Promise<{ used: number; quota: number }> {
+  const [used, quota] = await Promise.all([
+    supabase.rpc('storage_used_bytes').then(must<number>),
+    supabase.rpc('storage_quota_bytes').then(must<number>),
+  ]);
+  return { used: Number(used), quota: Number(quota) };
 }
 
 export async function deleteAccount() {

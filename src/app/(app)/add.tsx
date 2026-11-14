@@ -18,15 +18,16 @@ import {
   Section,
   Segmented,
   Text,
+  formatBytes,
   todayISO,
   type IconName,
 } from '@/components/ui';
 import { HitSize, Radius, Spacing } from '@/constants/theme';
 import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
-import { createDocument, listProfiles } from '@/lib/api';
+import { createDocument, listProfiles, QuotaExceededError } from '@/lib/api';
 import { discardLocalFiles } from '@/lib/bytes';
-import { confirm } from '@/lib/confirm';
+import { confirm, showMessage } from '@/lib/confirm';
 import { openSystemSettings, pickPdf, pickPhotos, scanDocument, ScanError } from '@/lib/scan';
 import type { DocType, LocalPage } from '@/lib/types';
 
@@ -219,6 +220,13 @@ export default function AddDocumentScreen() {
     } catch (e) {
       setSaving(false);
       setProgress(null);
+      if (e instanceof QuotaExceededError) {
+        showMessage(
+          'Cloud storage full',
+          `You've used ${formatBytes(e.used)} of ${formatBytes(e.quota)}. Delete or shrink large documents to free space.`,
+        );
+        return;
+      }
       setError(
         e instanceof Error
           ? `Could not save: ${e.message}. Check your internet connection and try again.`

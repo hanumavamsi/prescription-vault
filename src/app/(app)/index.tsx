@@ -13,6 +13,7 @@ import {
 
 import { applyDocFilter, DocFilters, isFiltered, NO_FILTER, type DocFilterValue } from '@/components/doc-filters';
 import { DocRow } from '@/components/doc-row';
+import { StorageDonut } from '@/components/storage-donut';
 import {
   Avatar,
   Button,
@@ -291,7 +292,10 @@ function PeopleRow({
           </Text>
         </Pressable>
       </ScrollView>
-      {roles.length > 1 && <RoleLegend roles={roles} />}
+      <View style={styles.legendRow}>
+        {roles.length > 1 && <RoleLegend roles={roles} />}
+        <StorageDonut />
+      </View>
     </View>
   );
 }
@@ -413,7 +417,8 @@ const styles = StyleSheet.create({
     borderRadius: Radius.medium,
   },
   personName: { textAlign: 'center' },
-  legend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: Spacing.three, rowGap: Spacing.one },
+  legendRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  legend: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', columnGap: Spacing.three, rowGap: Spacing.one },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one + 2 },
   legendDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 3 },
   whose: {
