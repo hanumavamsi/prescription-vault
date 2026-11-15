@@ -1,7 +1,7 @@
 -- Storage quota tests. Run: npx supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(10);
 
 update signup_limits set direct_cap = 1000000, total_cap = 1000000;
 
@@ -49,6 +49,14 @@ select is(storage_used_bytes(), 52428800::bigint, 'B sees only own usage');
 select lives_ok(
   $$ insert into storage.objects (bucket_id, name, metadata) select 'documents', b_own || '/d/2.jpg', '{"size": 1}' from t_p $$,
   'other account unaffected');
+
+reset role;
+update signup_limits set storage_quota_bytes = 1;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
+select is(storage_quota_bytes(), 1::bigint, 'quota follows signup_limits');
+select throws_ok(
+  $$ insert into storage.objects (bucket_id, name, metadata) select 'documents', b_own || '/d/3.jpg', '{"size": 1}' from t_p $$,
+  '42501', null, 'lowered quota is enforced');
 
 select * from finish();
 rollback;

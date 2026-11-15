@@ -26,4 +26,9 @@ describe('<DocRow />', () => {
     await render(<DocRow doc={doc({ private: true })} onPress={() => {}} />);
     expect(screen.getByText(`Only me · ${formatDate('2026-11-04')} · 1 page`)).toBeTruthy();
   });
+
+  it('marks documents saved only on this device', async () => {
+    await render(<DocRow doc={doc({ id: 'local-x' })} onPress={() => {}} />);
+    expect(screen.getByText(`On this device · ${formatDate('2026-11-04')} · 1 page`)).toBeTruthy();
+  });
 });

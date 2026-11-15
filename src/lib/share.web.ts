@@ -124,6 +124,23 @@ export async function sharePage(input: SharePageInput): Promise<void> {
   download(file);
 }
 
+/**
+ * Gives the user their own copy of files: one share sheet ("Save to Files" on iPhone) when the browser
+ * can share files, otherwise one download each. Call it straight from a tap, without awaiting first.
+ */
+export async function saveFilesToDevice(files: File[]): Promise<void> {
+  const data: ShareData = { files };
+  if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function' && navigator.canShare(data)) {
+    try {
+      await navigator.share(data);
+      return;
+    } catch (e) {
+      if (isAbort(e)) return;
+    }
+  }
+  files.forEach(download);
+}
+
 /** 'shared': share sheet opened; 'copied': message copied to the clipboard; 'dismissed': user cancelled. */
 export type ShareTextResult = 'shared' | 'copied' | 'dismissed';
 

@@ -64,3 +64,5 @@ graphify-out/
 
 # Serena (local AI tooling state)
 .serena/
+
+e2e-screenshots/
