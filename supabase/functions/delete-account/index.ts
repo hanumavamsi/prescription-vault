@@ -36,9 +36,22 @@ Deno.serve(async (req) => {
       .in('documents.profile_id', profileIds);
     if (pgErr) return json({ error: pgErr.message }, 500);
 
-    const paths = (pages ?? []).map((p) => p.storage_path);
-    for (let i = 0; i < paths.length; i += 100) {
-      const { error } = await admin.storage.from('documents').remove(paths.slice(i, i + 100));
+    const paths = new Set((pages ?? []).map((p) => p.storage_path));
+    // Also files in these profiles' folders that never got a page row (an upload whose page insert failed).
+    const bucket = admin.storage.from('documents');
+    for (const pid of profileIds) {
+      const { data: docDirs, error } = await bucket.list(pid, { limit: 1000 });
+      if (error) return json({ error: error.message }, 500);
+      for (const dir of docDirs ?? []) {
+        const { data: files, error: fErr } = await bucket.list(`${pid}/${dir.name}`, { limit: 1000 });
+        if (fErr) return json({ error: fErr.message }, 500);
+        for (const f of files ?? []) paths.add(`${pid}/${dir.name}/${f.name}`);
+      }
+    }
+
+    const all = [...paths];
+    for (let i = 0; i < all.length; i += 100) {
+      const { error } = await bucket.remove(all.slice(i, i + 100));
       if (error) return json({ error: error.message }, 500);
     }
   }
