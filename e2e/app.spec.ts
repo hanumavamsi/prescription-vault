@@ -150,7 +150,7 @@ test('cloud full: save on this device, download a copy, still listed after reloa
     await shot('3-saved-offer-download');
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download a copy' }).click();
-    expect((await download).suggestedFilename()).toMatch(/^Lab report \d{4}-\d{2}-\d{2}\.pdf$/);
+    expect((await download).suggestedFilename()).toMatch(/^Lab[ _]report[ _]\d{4}-\d{2}-\d{2}\.pdf$/); // WebKit swaps spaces for _
 
     const row = page.getByText(/On this device · /);
     await expect(page.getByText('Lab report')).toBeVisible();
