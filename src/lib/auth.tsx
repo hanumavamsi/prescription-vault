@@ -11,6 +11,7 @@ import * as Crypto from 'expo-crypto';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 
+import { identify, resetAnalytics } from '@/lib/analytics';
 import { listProfiles, updateProfile } from '@/lib/api';
 import { clearCache } from '@/lib/cache';
 import { googleWebSignOut, type GoogleCredential } from '@/lib/google-web';
@@ -150,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_OUT') {
         // Covers expired sessions and account deletion as well as explicit sign out.
         clearCache().catch(() => {});
+        resetAnalytics();
       }
     });
     return () => {
@@ -157,6 +159,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sub.subscription.unsubscribe();
     };
   }, []);
+
+  const userId = session?.user.id;
+  useEffect(() => {
+    if (userId) identify(userId);
+  }, [userId]);
 
   const signInWithApple = useCallback(async () => {
     if (Platform.OS !== 'ios') throw new Error('Sign in with Apple is only available on iPhone.');
