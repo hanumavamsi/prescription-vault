@@ -81,13 +81,18 @@ check(!r.error, 'claimer can download moved file');
 r = await a.c.storage.from('documents').download(mDoc.path);
 check(!r.error, 'former manager keeps view access');
 
-// delete account
+// delete account: also removes a file in her folder that never got a page row
+const orphan = `${carol.profileId}/${crypto.randomUUID()}/1-orphan.jpg`;
+r = await carol.c.storage.from('documents').upload(orphan, jpeg, { contentType: 'image/jpeg' });
+check(!r.error, `orphan upload ${r.error?.message ?? ''}`);
 const fn = await carol.c.functions.invoke('delete-account', { method: 'POST' });
 check(!fn.error, `delete-account succeeds ${fn.error?.message ?? ''}`);
 const { data: gone } = await admin.auth.admin.getUserById(carol.id);
 check(!gone?.user, 'carol auth user deleted');
 const { data: obj } = await admin.storage.from('documents').download(mDoc.path).catch(() => ({ data: null }));
 check(!obj, 'carol files deleted');
+const { data: orphanObj } = await admin.storage.from('documents').download(orphan).catch(() => ({ data: null }));
+check(!orphanObj, 'carol orphan file deleted');
 const { count } = await admin.from('documents').select('*', { count: 'exact', head: true }).eq('id', mDoc.doc.id);
 check(count === 0, 'carol documents deleted');
 
