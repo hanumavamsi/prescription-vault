@@ -7,7 +7,7 @@ export function DocRow({ doc, onPress, last }: { doc: Document; onPress: () => v
   const pages = doc.page_count === 1 ? '1 page' : `${doc.page_count} pages`;
   const title = doc.title?.trim();
   const subtitle = [
-    isLocalId(doc.id) ? 'On this phone' : null,
+    isLocalId(doc.id) ? 'On this device' : null,
     doc.private ? 'Only me' : null,
     title ? docTypeLabel[doc.type] : null,
     doc.specialty?.trim(),

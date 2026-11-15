@@ -1,5 +1,5 @@
 /**
- * Documents saved only on this phone (offered when the cloud quota is full).
+ * Documents saved only on this device (offered when the cloud quota is full).
  *
  * Storage: IndexedDB, not the Origin Private File System. OPFS writes from the main thread need
  * FileSystemFileHandle.createWritable(), which Safari only shipped in Safari/iOS 26; older iPhones
@@ -35,7 +35,7 @@ export const localDocsSupported = true;
 class LocalStorageUnavailableError extends Error {
   constructor(cause?: unknown) {
     super(
-      "This browser won't let Rx Vault save files on this phone. Private Browsing may be on — turn it off, or free up space in the cloud and try again.",
+      "This browser won't let Rx Vault save files on this device. Private Browsing may be on — turn it off, or free up space in the cloud and try again.",
     );
     this.name = 'LocalStorageUnavailableError';
     (this as { cause?: unknown }).cause = cause;
@@ -85,8 +85,8 @@ async function run<T>(mode: IDBTransactionMode, fn: (docs: IDBObjectStore, pages
       const err = tx.error ?? req?.error;
       reject(
         err?.name === 'QuotaExceededError'
-          ? new Error('There is not enough free space on this phone to save this document.')
-          : new Error(err?.message || 'Could not access documents saved on this phone.'),
+          ? new Error('There is not enough free space on this device to save this document.')
+          : new Error(err?.message || 'Could not access documents saved on this device.'),
       );
     };
     tx.onerror = fail;
@@ -104,7 +104,7 @@ async function userId(): Promise<string> {
 /** The signed-in user's local document, or an error as if it did not exist. */
 async function getMeta(id: string): Promise<LocalDocMeta> {
   const [uid, meta] = await Promise.all([userId(), run<LocalDocMeta | undefined>('readonly', (docs) => docs.get(id))]);
-  if (!meta || meta.user_id !== uid) throw new Error('This document is not saved on this phone.');
+  if (!meta || meta.user_id !== uid) throw new Error('This document is not saved on this device.');
   return meta;
 }
 
@@ -193,6 +193,6 @@ export async function getLocalPage(page: DocumentPage): Promise<Blob> {
   const rec = await run<{ mime: string; bytes: ArrayBuffer } | undefined>('readonly', (_, pages) =>
     pages.get(page.storage_path),
   );
-  if (!rec) throw new Error('This page is missing from this phone.');
+  if (!rec) throw new Error('This page is missing from this device.');
   return new Blob([rec.bytes], { type: rec.mime });
 }

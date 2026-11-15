@@ -7,7 +7,7 @@ import type { DocDetails, DocType, Document, DocumentPage, LocalPage } from '@/l
 export const localDocsSupported = false;
 
 function unsupported(): never {
-  throw new Error('Saving on this phone is only available in the web app.');
+  throw new Error('Saving on this device is only available in the web app.');
 }
 
 export async function saveLocalDocument(_input: {

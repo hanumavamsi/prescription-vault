@@ -18,6 +18,7 @@ import {
   Section,
   Segmented,
   Text,
+  docTypeLabel,
   formatBytes,
   todayISO,
   type IconName,
@@ -30,6 +31,7 @@ import { discardLocalFiles } from '@/lib/bytes';
 import { confirm, showMessage } from '@/lib/confirm';
 import { localDocsSupported, saveLocalDocument } from '@/lib/local-docs';
 import { openSystemSettings, pickPdf, pickPhotos, scanDocument, ScanError } from '@/lib/scan';
+import { saveFilesToDevice, shareFileName } from '@/lib/share';
 import type { DocType, LocalPage } from '@/lib/types';
 
 type Source = 'scan' | 'photos' | 'pdf';
@@ -76,8 +78,8 @@ export default function AddDocumentScreen() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  /** Cloud is full: asking whether to save on this phone; resolve answers the dialog. */
-  const [quotaAsk, setQuotaAsk] = useState<{ used: number; quota: number; resolve: (ok: boolean) => void } | null>(null);
+  /** Cloud is full: the save-on-this-device dialog; resolve answers it. */
+  const [quotaAsk, setQuotaAsk] = useState<QuotaAsk | null>(null);
   /** Web: the live camera is open for shooting pages one after another. */
   const [cameraOpen, setCameraOpen] = useState(false);
   /** Web: the live camera failed once (blocked, missing); use the browser's one-shot camera instead. */
@@ -219,20 +221,30 @@ export default function AddDocumentScreen() {
       } catch (e) {
         if (!(e instanceof QuotaExceededError) || !localDocsSupported) throw e;
         const { used, quota } = e;
-        const onPhone = await new Promise<boolean>((resolve) => setQuotaAsk({ used, quota, resolve }));
-        setQuotaAsk(null);
-        const localError = onPhone
+        const onDevice = await new Promise<boolean>((resolve) => setQuotaAsk({ phase: 'full', used, quota, resolve }));
+        const localError = onDevice
           ? await saveLocalDocument(input).then(
               () => null,
               (le: unknown) => (le instanceof Error ? le.message : String(le)),
             )
           : null;
-        if (!onPhone || localError) {
+        if (!onDevice || localError) {
+          setQuotaAsk(null);
           setSaving(false);
           setProgress(null);
-          if (localError) setError(`Could not save on this phone: ${localError}`);
+          if (localError) setError(`Could not save on this device: ${localError}`);
           return;
         }
+        // Offer the user their own copy (Files / Downloads) in case the browser later clears its storage.
+        const name = `${title.trim() || docTypeLabel[type]} ${date}`;
+        const files = await Promise.all(
+          pages.map(async (p, i) => {
+            const blob = await (await fetch(p.uri)).blob();
+            return new File([blob], shareFileName(name, { mime: p.mime, page_no: i + 1 }, pages.length), { type: p.mime });
+          }),
+        ).catch(() => null);
+        if (files) await new Promise<boolean>((resolve) => setQuotaAsk({ phase: 'saved', files, resolve }));
+        setQuotaAsk(null);
       }
       deleteLocalPages(pages);
       setSaving(false);
@@ -528,26 +540,50 @@ export default function AddDocumentScreen() {
 
 // ------------------------------------------------------------------ local components
 
-/** Cloud storage is full: offer to keep this document on this phone only. */
-function QuotaDialog({ used, quota, resolve }: { used: number; quota: number; resolve: (ok: boolean) => void }) {
+type QuotaAsk =
+  | { phase: 'full'; used: number; quota: number; resolve: (ok: boolean) => void }
+  | { phase: 'saved'; files: File[]; resolve: (ok: boolean) => void };
+
+/** Cloud storage is full: offer to keep this document on this device, then to download a copy. */
+function QuotaDialog(ask: QuotaAsk) {
   const theme = useTheme();
   return (
-    <Modal transparent animationType="fade" onRequestClose={() => resolve(false)}>
+    <Modal transparent animationType="fade" onRequestClose={() => ask.resolve(false)}>
       <View style={styles.dialogBackdrop}>
         <View style={[styles.dialog, { backgroundColor: theme.background }]} accessibilityViewIsModal>
-          <Text variant="headline" accessibilityRole="header">
-            Cloud storage full
-          </Text>
-          <Text color="textSecondary">
-            You&apos;ve used {formatBytes(used)} of {formatBytes(quota)}, so this document can&apos;t be uploaded. Save it on
-            this phone instead?
-          </Text>
-          <Text variant="footnote" color="textSecondary">
-            It stays only in this browser on this device. It isn&apos;t backed up or shared with family, and iPhone may
-            delete it if you don&apos;t open Rx Vault for a few weeks (adding it to the Home Screen helps).
-          </Text>
-          <Button title="Save on this phone" onPress={() => resolve(true)} />
-          <Button title="Cancel" variant="secondary" onPress={() => resolve(false)} />
+          {ask.phase === 'full' ? (
+            <>
+              <Text variant="headline" accessibilityRole="header">
+                Cloud storage full
+              </Text>
+              <Text color="textSecondary">
+                You&apos;ve used {formatBytes(ask.used)} of {formatBytes(ask.quota)}, so this document can&apos;t be
+                uploaded. Save it on this device instead?
+              </Text>
+              <Text variant="footnote" color="textSecondary">
+                It stays only in this browser on this device. It isn&apos;t backed up or shared with family, and the
+                browser may clear it if you don&apos;t open Rx Vault for a few weeks (on iPhone, adding it to the Home
+                Screen helps).
+              </Text>
+              <Button title="Save on this device" onPress={() => ask.resolve(true)} />
+              <Button title="Cancel" variant="secondary" onPress={() => ask.resolve(false)} />
+            </>
+          ) : (
+            <>
+              <Text variant="headline" accessibilityRole="header">
+                Saved on this device
+              </Text>
+              <Text color="textSecondary">
+                Also keep your own copy in Files or Downloads, so you still have it if the browser clears its storage.
+              </Text>
+              <Button
+                title="Download a copy"
+                // Straight from the tap: browsers only open the share sheet during one.
+                onPress={() => void saveFilesToDevice(ask.files).finally(() => ask.resolve(true))}
+              />
+              <Button title="Not now" variant="secondary" onPress={() => ask.resolve(false)} />
+            </>
+          )}
         </View>
       </View>
     </Modal>

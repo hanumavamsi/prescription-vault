@@ -118,3 +118,57 @@ test('over the signup cap: waitlist screen, no app, can delete the account', asy
     await admin.from('signup_limits').update({ direct_cap: before.direct_cap }).eq('id', true);
   }
 });
+
+test('cloud full: save on this device, download a copy, still listed after reload', async ({ page }, info) => {
+  const admin = createClient(process.env.E2E_SUPABASE_URL!, process.env.E2E_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+  const shot = (n: string) => page.screenshot({ path: `e2e-screenshots/${info.project.name}-${n}.png` });
+  // Headless browsers differ on navigator.share; force the download path so the copy can be checked.
+  await page.addInitScript(() => Object.defineProperty(navigator, 'share', { value: undefined }));
+
+  const email = `e2e-local-${info.project.name}-${Date.now()}@test.dev`;
+  await signIn(page, email);
+  const { error } = await admin.from('signup_limits').update({ storage_quota_bytes: 0 }).eq('id', true);
+  if (error) throw error;
+  try {
+    await page.reload();
+    await expect(page.getByLabel(/Cloud storage: 0 KB of 0 KB used/)).toBeVisible();
+    await shot('1-home-cloud-full');
+
+    await page.getByRole('button', { name: 'Add my document' }).click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByText('Import PDF').click();
+    await (await chooser).setFiles({ name: 'lab.pdf', mimeType: 'application/pdf', buffer: PDF });
+    await page.getByRole('tab', { name: 'Report' }).click();
+    await page.getByLabel('Title').fill('Lab report');
+    await page.getByRole('button', { name: 'Save', exact: true }).last().click();
+
+    await expect(page.getByText('Cloud storage full')).toBeVisible();
+    await shot('2-cloud-full-dialog');
+    await page.getByRole('button', { name: 'Save on this device' }).click();
+
+    await expect(page.getByText('Saved on this device')).toBeVisible();
+    await shot('3-saved-offer-download');
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download a copy' }).click();
+    expect((await download).suggestedFilename()).toMatch(/^Lab report \d{4}-\d{2}-\d{2}\.pdf$/);
+
+    const row = page.getByText(/On this device · /);
+    await expect(page.getByText('Lab report')).toBeVisible();
+    await expect(row).toBeVisible();
+    await shot('4-home-on-this-device');
+
+    // Survives a reload (IndexedDB), and opens from the device.
+    await page.reload();
+    await expect(row).toBeVisible();
+    await page.getByText('Lab report').click();
+    await expect(page).toHaveURL(/\/document\/local-/);
+    await expect(page.getByText(/couldn.t|not saved|missing/i)).toHaveCount(0);
+    await shot('5-viewer-from-device');
+
+    // Nothing went to the cloud.
+    const { data: docs } = await admin.from('documents').select('id').eq('title', 'Lab report');
+    expect(docs).toEqual([]);
+  } finally {
+    await admin.from('signup_limits').update({ storage_quota_bytes: 104857600 }).eq('id', true);
+  }
+});

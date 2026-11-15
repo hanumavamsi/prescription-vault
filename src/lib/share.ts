@@ -62,6 +62,9 @@ export async function sharePage({ uri, mime, fileName, title }: SharePageInput):
 /** Whether this platform can combine a document's photo pages into one PDF to share. */
 export const canSharePdf = true;
 
+/** Web only: documents are saved on the device only in the web app. */
+export async function saveFilesToDevice(_files: globalThis.File[]): Promise<void> {}
+
 // A4 at 72 PPI, the size expo-print measures pages in.
 const A4 = { width: 595, height: 842 };
 

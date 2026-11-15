@@ -112,7 +112,7 @@ export async function listDocuments(profileId: string, type?: DocType): Promise<
     .order('doc_date', { ascending: false })
     .order('created_at', { ascending: false });
   if (type) q = q.eq('type', type);
-  // Documents saved only on this phone (web) are listed with the cloud ones.
+  // Documents saved only on this device (web) are listed with the cloud ones.
   const [cloud, local] = await Promise.all([q.then(must<Document[]>), // A blocked IndexedDB (private browsing) must not hide the cloud documents.
     listLocalDocuments(profileId, type).catch(() => []),
   ]);
