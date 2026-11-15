@@ -19,6 +19,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Button, EmptyState } from '@/components/ui';
 import { UpdateBanner } from '@/components/update-banner';
 import { Colors } from '@/constants/theme';
+import { captureError } from '@/lib/analytics';
 import { AppLockProvider } from '@/lib/app-lock';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { clearPendingInvite, getPendingInvite } from '@/lib/pending-invite';
@@ -47,6 +48,7 @@ function navTheme(scheme: 'light' | 'dark'): Theme {
  */
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  useEffect(() => captureError(error), [error]);
   // A full reload also recovers from a failed route chunk download on the web.
   const reload = () => (Platform.OS === 'web' ? window.location.reload() : void retry());
   return (

@@ -4,6 +4,7 @@
  */
 import * as Crypto from 'expo-crypto';
 
+import { track } from '@/lib/analytics';
 import { readBytes } from '@/lib/bytes';
 import { isLocalId, mergeDocs } from '@/lib/local-doc-meta';
 import {
@@ -219,6 +220,7 @@ export async function createDocument(
     await supabase.from('documents').delete().eq('id', doc.id);
     throw e;
   }
+  track('document_added', { type: input.type, pages: input.pages.length, private: !!input.private });
   return { ...doc, page_count: input.pages.length, size_bytes: sizeBytes };
 }
 
@@ -245,12 +247,14 @@ export function inviteUrl(token: string) {
 /** Link asking someone to let me view their records. */
 export async function createViewInvite(): Promise<string> {
   const token = must<string>(await supabase.rpc('create_invite', { p_purpose: 'view' }));
+  track('invite_created', { purpose: 'view' });
   return inviteUrl(token);
 }
 
 /** Link handing a managed profile over to the person it belongs to. */
 export async function createClaimInvite(profileId: string): Promise<string> {
   const token = must<string>(await supabase.rpc('create_invite', { p_purpose: 'claim', p_profile_id: profileId }));
+  track('invite_created', { purpose: 'claim' });
   return inviteUrl(token);
 }
 
@@ -261,6 +265,7 @@ export async function getInvite(token: string): Promise<InvitePreview | null> {
 
 export async function acceptInvite(token: string): Promise<void> {
   must(await supabase.rpc('accept_invite', { p_token: token }));
+  track('invite_accepted');
 }
 
 export async function declineInvite(token: string): Promise<void> {
