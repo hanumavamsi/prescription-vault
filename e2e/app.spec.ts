@@ -162,6 +162,8 @@ test('cloud full: save on this device, download a copy, still listed after reloa
     await expect(row).toBeVisible();
     await page.getByText('Lab report').click();
     await expect(page).toHaveURL(/\/document\/local-/);
+    // The page loads from IndexedDB: the PDF frame and its Open PDF button appear, no error.
+    await expect(page.getByRole('button', { name: 'Open PDF' })).toBeVisible();
     await expect(page.getByText(/couldn.t|not saved|missing/i)).toHaveCount(0);
     await shot('5-viewer-from-device');
 
