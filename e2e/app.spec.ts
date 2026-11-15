@@ -121,7 +121,7 @@ test('over the signup cap: waitlist screen, no app, can delete the account', asy
 
 test('cloud full: save on this device, download a copy, still listed after reload', async ({ page }, info) => {
   const admin = createClient(process.env.E2E_SUPABASE_URL!, process.env.E2E_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
-  const shot = (n: string) => page.screenshot({ path: `e2e-screenshots/${info.project.name}-${n}.png` });
+  const shot = (n: string) => page.screenshot({ path: `e2e-screenshots/${info.project.name}-${n}.png`, animations: 'disabled' });
   // Headless browsers differ on navigator.share; force the download path so the copy can be checked.
   await page.addInitScript(() => Object.defineProperty(navigator, 'share', { value: undefined }));
 
