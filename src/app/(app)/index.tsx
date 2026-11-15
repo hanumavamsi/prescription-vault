@@ -13,6 +13,7 @@ import {
 
 import { applyDocFilter, DocFilters, isFiltered, NO_FILTER, type DocFilterValue } from '@/components/doc-filters';
 import { DocRow } from '@/components/doc-row';
+import { InstallHint } from '@/components/install-hint';
 import { StorageDonut } from '@/components/storage-donut';
 import {
   Avatar,
@@ -157,6 +158,8 @@ export default function Home() {
             Couldn&apos;t refresh: {error}
           </Text>
         )}
+
+        <InstallHint signedIn />
 
         <PeopleRow profiles={profiles} selectedId={selected.id} onSelect={select} roles={roles} />
 

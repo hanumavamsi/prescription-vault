@@ -46,6 +46,34 @@ test('signed-out visitors only see sign-in', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Add my document' })).toHaveCount(0);
 });
 
+test('Add to Home Screen card: shown in the browser, hidden from the Home Screen and once dismissed', async ({ page, browser }, info) => {
+  const shot = (n: string) => page.screenshot({ path: `e2e-screenshots/${info.project.name}-home-screen-${n}.png`, animations: 'disabled' });
+  const card = page.getByText('Add Rx Vault to your Home Screen');
+  await page.goto('/');
+  await expect(card).toBeVisible();
+  await expect(page.getByText(info.project.name === 'iphone-webkit' ? /Add to Home Screen\./ : /Add to Home screen\./)).toBeVisible();
+  await shot('1-card');
+
+  await page.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(card).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('checkbox', { name: /I agree to the Terms/ })).toBeVisible();
+  await expect(card).toHaveCount(0);
+
+  // Opened from the Home Screen (standalone): never shown.
+  const ctx = await browser.newContext({ ...info.project.use });
+  const app = await ctx.newPage();
+  await app.addInitScript(() => {
+    const mm = window.matchMedia.bind(window);
+    window.matchMedia = (q: string) => (q === '(display-mode: standalone)' ? ({ ...mm(q), matches: true } as MediaQueryList) : mm(q));
+  });
+  await app.goto(page.url());
+  await expect(app.getByRole('checkbox', { name: /I agree to the Terms/ })).toBeVisible();
+  await expect(app.getByText('Add Rx Vault to your Home Screen')).toHaveCount(0);
+  await app.screenshot({ path: `e2e-screenshots/${info.project.name}-home-screen-2-standalone.png`, animations: 'disabled' });
+  await ctx.close();
+});
+
 test('sign in, add a document, find it, manage a family member, delete the account', async ({ page }, info) => {
   const email = `e2e-${info.project.name}-${Date.now()}@test.dev`;
   await signIn(page, email);

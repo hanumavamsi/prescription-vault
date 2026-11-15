@@ -4,6 +4,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GoogleWebButton } from '@/components/google-web-button';
+import { InstallHint } from '@/components/install-hint';
 import { Button, Field, Icon, Text } from '@/components/ui';
 import { HitSize, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -168,6 +169,8 @@ export default function SignInScreen() {
             Every prescription and medical report for your whole family, safe in one place.
           </Text>
         </View>
+
+        <InstallHint />
 
         <View style={styles.actions}>
           <Pressable
